@@ -37,6 +37,24 @@
 
 ---
 
+## 一·五、部署到公网（免费）
+
+想让手机、让别人也能用，走 **GitHub + Cloudflare Pages**，全免费、不用备案。
+完整步骤见 **[`DEPLOY.md`](DEPLOY.md)**。仓库已经初始化好（7 个提交 / 16,058 个文件），
+本地只差 `git remote add` + `git push` 两步。
+
+先记住两个硬约束：
+
+- **Cloudflare Pages 免费版上限 20,000 个文件**，现在用了 16,058 个（音频占 16,018），余量约 3,900。
+  每加一个词会新增 **19 个文件**（词 1 + 例句 3 + 变位 15），也就是**再加 200 个词就撞墙**。
+  到时要按 `DEPLOY.md` 第六节把音频拆到 R2（免费 10GB、出网流量免费），Pages 上只剩 20 来个文件。
+- **国内 + 微信是绕不过去的坎**。免费海外平台在国内都能打开，但速度中等；
+  **微信内置浏览器会拦截未备案域名**，点了显示「已停止访问该网页」。
+  要真正在微信里传播，只有「买域名 → 备案 → 走 EdgeOne 国内节点」一条路。
+  测试阶段让朋友「复制链接到浏览器打开」即可。
+
+---
+
 ## 二、已经能用的功能
 
 ### 三种学习模式
@@ -146,9 +164,15 @@
 
 ```
 krlearn/
-├── 启动.bat              # 双击这个
+├── 启动.bat              # 双击这个（本地跑）
+├── deploy.bat            # 双击这个（部署到 Cloudflare，wrangler 直传，备选路径）
 ├── serve.py              # 本地服务器（标准库，无依赖）
 ├── index.html
+├── _headers              # Cloudflare 响应头：音频 1 天强缓存、页面和词库每次验证
+├── DEPLOY.md             # 部署到公网的完整步骤
+├── .gitignore            # 排除验证产物 / __pycache__ / CDP 步骤文件
+├── .gitattributes        # `* -text`：禁止 git 改换行（否则 启动.bat 的 CRLF 会被破坏）
+├── .wranglerignore       # wrangler 直传时忽略的文件
 ├── assets/
 │   ├── app.js            # 全部业务逻辑
 │   └── styles.css        # 主题 / 布局
@@ -164,6 +188,7 @@ krlearn/
 ├── audio/                # 16018 条 mp3，约 288MB
 │   ├── letters/  syl/  words/  sent/  conj/
 └── tools/
+    ├── init_repo.sh      # 初始化 git 仓库 + 分 5 批提交（部署第一步）
     ├── build_data.py     # 生成字母表 + 词库 + 词本
     ├── ex_verbs.py       # 动词/形容词的 3 条分级例句（人工撰写）
     ├── ex_nouns.py       # 名词/短语的 3 条分级例句
