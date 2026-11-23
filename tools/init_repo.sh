@@ -77,7 +77,7 @@ echo "==> 仓库就绪"
 echo "    提交数：$(git rev-list --count HEAD 2>/dev/null || echo 0)"
 echo "    跟踪文件：$(git ls-files | wc -l) 个"
 echo "    仓库体积：$(du -sh .git | cut -f1)"
-echo "    工作区体积：$(git ls-files -z | xargs -0 du -ch 2>/dev/null | tail -1 | cut -f1)"
+echo "    工作区体积：$(du -sh --exclude=.git . | cut -f1)"
 echo
 echo "下一步（把 用户名 换成你自己的）："
 echo "  git remote add origin https://github.com/用户名/krlearn.git"

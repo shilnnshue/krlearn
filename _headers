@@ -7,6 +7,10 @@
   Referrer-Policy: strict-origin-when-cross-origin
 
 # 页面本身必须每次验证，否则改了代码用户还看老版本
+# 注意：访问首页时请求路径是 "/" 而不是 "/index.html"，两条都要写
+/
+  Cache-Control: no-cache
+
 /index.html
   Cache-Control: no-cache
 
