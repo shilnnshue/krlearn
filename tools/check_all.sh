@@ -18,10 +18,10 @@ QUICK=0
 FAIL=0
 line() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-line "== 1/3 数据自检（结构 + 音频文件 + 指纹）=="
+line "== 1/4 数据自检（结构 + 音频文件 + 指纹 + 语法）=="
 if "$PY" tools/check_data.py; then :; else FAIL=1; fi
 
-line "== 2/3 视图回归（node + jsdom，不依赖浏览器）=="
+line "== 2/4 视图回归（node + jsdom，不依赖浏览器）=="
 # 注意：Windows 版 curl 写 /dev/null 会报 rc=23（Write error），必须让 shell 重定向
 if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then
   if NODE_PATH="$NODE_MODULES" "$NODE" tools/jsdom_check.js "$BASE"; then :; else FAIL=1; fi
@@ -31,8 +31,13 @@ else
   FAIL=1
 fi
 
+if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then
+  line "== 3/4 语法栏目交互（筛选 / 搜索 / 详情 / 返回保持状态）=="
+  if NODE_PATH="$NODE_MODULES" "$NODE" tools/check_grammar.js 2>&1 | tail -9; then :; else FAIL=1; fi
+fi
+
 if [ "$QUICK" = "0" ]; then
-  line "== 3/3 音频体检（只报告，不修）=="
+  line "== 4/4 音频体检（只报告，不修）=="
   # --stale 按 mtime 找「数据改过、音频没跟上」的条目；数量为 0 就是全齐
   if KR_CONC=8 "$PY" tools/audit_audio.py --stale --dry 2>&1 | tail -6; then :; else FAIL=1; fi
 fi

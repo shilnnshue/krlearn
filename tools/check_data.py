@@ -214,9 +214,53 @@ def main():
             if have < cnt:
                 fail("%s 目录音频不足：%d / %d" % (d, have, cnt))
 
+    # ---------- 语法栏目 ----------
+    try:
+        gram = rd("grammar.json")
+    except FileNotFoundError:
+        gram = None
+        warn("没有 data/grammar.json，语法栏目会是空页（跑 python tools/build_grammar.py）")
+    except Exception as e:
+        gram = None
+        fail("grammar.json 解析失败：%s" % e)
+
+    gex = 0
+    if isinstance(gram, list):
+        if not gram:
+            fail("grammar.json 是空数组")
+        need = ("id", "form", "level", "cat", "attach", "meaning", "desc", "ex", "note", "cmp")
+        gseen = set()
+        for i, g in enumerate(gram):
+            tag = g.get("id") or ("#%d" % i)
+            if g.get("id") in gseen:
+                fail("语法 id 重复：%s" % tag)
+            gseen.add(g.get("id"))
+            if not re.match(r"^g\d{3}$", str(g.get("id", ""))):
+                fail("语法 id 格式不对（应为 gNNN）：%s" % tag)
+            for k in need:
+                if k not in g:
+                    fail("语法 %s 缺字段 %s" % (tag, k))
+            if g.get("level") not in ("初级", "中级", "高级"):
+                fail("语法 %s level 非法：%s" % (tag, g.get("level")))
+            ex = g.get("ex") or []
+            if len(ex) < 2:
+                fail("语法 %s 例句少于 2 条（%d）" % (tag, len(ex)))
+            for j, e in enumerate(ex):
+                gex += 1
+                kk = str(e.get("kr", "")).strip()
+                zz = str(e.get("zh", "")).strip()
+                if not kk or not zz:
+                    fail("语法 %s 第 %d 条例句不完整" % (tag, j + 1))
+                elif not kk.endswith((".", "?", "!")):
+                    fail("语法 %s 第 %d 条韩语例句没加标点：%s" % (tag, j + 1, kk))
+    elif gram is not None:
+        fail("grammar.json 应该是数组")
+
     # ---------- 报告 ----------
     print("词条 %d | 词本 %d | 变位 %d | 例句 %d"
           % (len(words), len(decks), len(conj), sum(len(w.get("examples") or []) for w in words)))
+    if isinstance(gram, list) and gram:
+        print("语法 %d 条 | 语法例句 %d 条" % (len(gram), gex))
     if warns:
         print("\n提示 %d 条：" % len(warns))
         for m in warns[:8]:

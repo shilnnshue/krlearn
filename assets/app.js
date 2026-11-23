@@ -260,7 +260,8 @@ function statePill(w) {
 let route = { name: 'home', arg: null };
 const TITLES = {
   home: '한글·学', alpha: '字母与发音', dict: '词典', stats: '学习统计',
-  settings: '设置', list: '列表', entry: '词条', note: '我的笔记', sent: '收藏句子', deck: '切换词本'
+  settings: '设置', list: '列表', entry: '词条', note: '我的笔记', sent: '收藏句子', deck: '切换词本',
+  grammar: '语法'
 };
 function go(name, arg, push) {
   route = { name, arg: arg || null };
@@ -285,6 +286,7 @@ window.addEventListener('hashchange', () => {
 $('#btn-back').addEventListener('click', () => {
   if (route.name === 'home') return;
   if (route.name === 'entry') return go('dict');
+  if (route.name === 'grammar' && route.arg) return go('grammar');
   if (route.name === 'note' || route.name === 'sent' || route.name === 'deck') return go('settings');
   go('home');
 });
@@ -326,6 +328,7 @@ function render() {
     case 'note': v.innerHTML = viewNotes(); break;
     case 'sent': v.innerHTML = viewSent(); break;
     case 'deck': v.innerHTML = viewDecks(); break;
+    case 'grammar': v.innerHTML = route.arg ? viewGrammarDetail(route.arg) : viewGrammar(); break;
     default: v.innerHTML = viewHome();
   }
   $('#tb-title').textContent = TITLES[route.name] || '한글·学';
@@ -374,6 +377,7 @@ function viewHome() {
   <div class="sec-title">常用</div>
   <div class="card">
     <div class="row click" data-go="alpha"><div class="r-main"><div class="r-title">字母与发音</div><div class="r-sub">谚文 40 字母 · 音节构建器</div></div>${ICON.chev}</div>
+    <div class="row click" data-go="grammar"><div class="r-main"><div class="r-title">语法</div><div class="r-sub">接续 · 意思 · 例句 · 易错点</div></div><div class="r-val">${(DATA.grammar || []).length || ''}</div>${ICON.chev}</div>
     <div class="row click" data-go="list/starred"><div class="r-main"><div class="r-title">生词本</div><div class="r-sub">收藏的重点词</div></div><div class="r-val">${Object.keys(DB.progress).filter(k => DB.progress[k].starred).length || ''}</div>${ICON.chev}</div>
     <div class="row click" data-go="stats"><div class="r-main"><div class="r-title">数据统计</div><div class="r-sub">学习量 · 连续天数</div></div>${ICON.chev}</div>
   </div>
@@ -1309,6 +1313,86 @@ function viewDecks() {
   <div class="drag-hint">导入格式示例：<br><code style="font-size:11.5px;color:var(--muted)">[{"korean":"먹다","chinese":"吃","pos":"动词","topik":1}]</code></div>`;
 }
 
+/* ==================== 语法 ==================== */
+let gFilter = '全部';          // 列表页筛选状态，进详情再返回时保持不变
+let gQuery = '';               // 搜索词同理，否则返回后框空了但结果还是过滤过的
+
+function grammarAll() { return DATA.grammar || []; }
+
+function viewGrammar() {
+  const all = grammarAll();
+  if (!all.length) {
+    return `<div class="empty"><div class="ic">∅</div>
+      <div class="t">语法数据没有加载出来。<br>检查 data/grammar.json 是否存在，</div>
+      <div class="t">或重新跑 python tools/build_grammar.py。</div></div>`;
+  }
+  const cnt = { '全部': all.length };
+  all.forEach(g => { cnt[g.level] = (cnt[g.level] || 0) + 1; });
+
+  const chips = ['全部', '初级', '中级', '高级'].filter(k => cnt[k])
+    .map(k => `<button class="chip ${gFilter === k ? 'on' : ''}" data-gf="${k}">`
+      + `${k}<span>${cnt[k]}</span></button>`).join('');
+
+  const items = all.map(g => `
+    <div class="g-item" data-go="grammar/${g.id}" data-level="${g.level}"
+         data-k="${esc((g.form + ' ' + g.meaning + ' ' + g.cat).toLowerCase())}">
+      <div class="g-top"><span class="g-form">${esc(g.form)}</span><span class="g-lv">${g.level}</span></div>
+      <div class="g-mean">${esc(g.meaning)}</div>
+      <div class="g-attach">${esc(g.attach)}</div>
+    </div>`).join('');
+
+  return `
+  <div class="g-intro">共 <b>${all.length}</b> 条语法，每条给到「接续 → 意思 → 例句 → 易错点」。</div>
+  <div class="g-filters">${chips}</div>
+  <input class="g-search" id="g-search" placeholder="搜语法或意思，例如 고 싶다、想要"
+         value="${esc(gQuery)}" autocomplete="off" spellcheck="false">
+  <div class="g-list" id="g-list">${items}</div>
+  <div class="empty" id="g-none" hidden><div class="t">没有匹配的语法</div></div>`;
+}
+
+function viewGrammarDetail(id) {
+  const all = grammarAll();
+  const i = all.findIndex(g => g.id === id);
+  if (i < 0) {
+    return `<div class="empty"><div class="ic">?</div>
+      <div class="t">找不到这条语法　<span class="lib-go" data-go="grammar">回到语法列表 ›</span></div></div>`;
+  }
+  const g = all[i];
+  const prev = all[i - 1];
+  const next = all[i + 1];
+
+  return `
+  <div class="g-head">
+    <div class="g-form-xl">${esc(g.form)}</div>
+    <div class="g-meta"><span class="g-lv">${g.level}</span><span class="g-cat">${esc(g.cat)}</span></div>
+    <div class="g-mean-xl">${esc(g.meaning)}</div>
+  </div>
+
+  <div class="card g-card">
+    <div class="kv"><span class="kv-k">接续</span><span class="kv-v">${esc(g.attach)}</span></div>
+  </div>
+
+  <div class="sec-title">怎么用</div>
+  <div class="card g-card"><div class="g-desc">${esc(g.desc)}</div></div>
+
+  <div class="sec-title">例句 · ${g.ex.length} 条</div>
+  <div class="card g-card">
+    ${g.ex.map(e => `<div class="ex-item"><div class="ex-ko">${esc(e.kr)}</div>`
+      + `<div class="ex-zh">${esc(e.zh)}</div></div>`).join('')}
+  </div>
+
+  ${g.note ? `<div class="sec-title">易错点</div>
+    <div class="card g-card"><div class="g-note">${esc(g.note)}</div></div>` : ''}
+
+  ${g.cmp ? `<div class="sec-title">容易混的地方</div>
+    <div class="card g-card"><div class="g-cmp">${esc(g.cmp)}</div></div>` : ''}
+
+  <div class="g-nav">
+    ${prev ? `<button class="btn btn-ghost" data-go="grammar/${prev.id}">‹ ${esc(prev.form)}</button>` : '<span></span>'}
+    ${next ? `<button class="btn btn-ghost" data-go="grammar/${next.id}">${esc(next.form)} ›</button>` : '<span></span>'}
+  </div>`;
+}
+
 /* ==================== 统计 ==================== */
 function viewStats() {
   const days = [];
@@ -1458,6 +1542,35 @@ function bindView() {
   document.querySelectorAll('[data-entry]').forEach(b => {
     b.onclick = () => go('entry', b.dataset.entry);
   });
+
+  // 语法列表：等级筛选 + 搜索。都是就地过滤 DOM，不重新渲染，避免输入框失焦。
+  const gs = $('#g-search');
+  if (gs) {
+    const applyG = () => {
+      const q = gs.value.trim().toLowerCase();
+      gQuery = gs.value;
+      let shown = 0;
+      document.querySelectorAll('#g-list .g-item').forEach(it => {
+        const okLv = gFilter === '全部' || it.dataset.level === gFilter;
+        const okQ = !q || it.dataset.k.indexOf(q) >= 0;
+        const vis = okLv && okQ;
+        it.style.display = vis ? '' : 'none';
+        if (vis) shown++;
+      });
+      const none = $('#g-none');
+      if (none) none.hidden = shown > 0;
+    };
+    gs.addEventListener('input', applyG);
+    document.querySelectorAll('[data-gf]').forEach(b => {
+      b.addEventListener('click', () => {
+        gFilter = b.dataset.gf;
+        document.querySelectorAll('[data-gf]')
+          .forEach(x => x.classList.toggle('on', x.dataset.gf === gFilter));
+        applyG();
+      });
+    });
+    applyG();          // 从详情页返回时把之前的筛选状态还原
+  }
   document.querySelectorAll('[data-act]').forEach(b => {
     b.onclick = () => {
       const a = b.dataset.act;
@@ -1626,15 +1739,17 @@ function doImport(file) {
 async function boot() {
   load(); applyTheme();
   try {
-    const [L, W, D, C, LM] = await Promise.all([
+    const [L, W, D, C, LM, G] = await Promise.all([
       fetch('data/letters.json').then(r => r.json()),
       fetch('data/words.json').then(r => r.json()),
       fetch('data/decks.json').then(r => r.json()),
       fetch('data/conjugations.json').then(r => r.json()).catch(() => ({})),
       fetch('data/legacy.json').then(r => r.json()).catch(() => ({})),
+      fetch('data/grammar.json').then(r => r.json()).catch(() => []),
     ]);
     DATA.letters = L; DATA.words = W; DATA.decks = D; DATA.conj = C;
     DATA.legacy = LM;                 // 旧 id → 韩文，只用于迁移老存档
+    DATA.grammar = G || [];
     DATA.wordMap = {};
     W.forEach(w => { DATA.wordMap[w.id] = w; });
   } catch (e) {

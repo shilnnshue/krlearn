@@ -7,6 +7,7 @@ const ROUTES = [
   'home', 'alpha', 'dict', 'stats', 'settings',
   'list/wrong', 'list/due', 'list/learning', 'list/mastered',
   'note', 'sent', 'deck', 'entry/w0001', 'entry/w0316', 'entry/w5926',
+  'grammar', 'grammar/g001', 'grammar/g040', 'grammar/g067',
 ];
 
 (async () => {
