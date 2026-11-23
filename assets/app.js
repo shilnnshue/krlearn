@@ -196,12 +196,26 @@ AU.addEventListener('ended', () => {
   if (AQ.length) { aqTimer = setTimeout(() => { aqTimer = null; aqNext(); }, 300); }
 });
 
+// 音频根路径。
+//   同域部署（音频跟页面在同一域名下）→ 空字符串，走相对路径，和以前完全一样。
+//   音频放 Cloudflare R2 / 别的 CDN → 在 index.html 里设 window.KR_AUDIO_BASE。
+// 拆 R2 只需要改那一行配置，这里以下全是零改动。
+const AUDIO_BASE = (() => {
+  let b = String((typeof window !== 'undefined' && window.KR_AUDIO_BASE) || '').trim();
+  if (b && !b.endsWith('/')) b += '/';
+  return b;
+})();
+// 用户可能填到站点根 https://x.r2.dev/，也可能填到 audio 目录 https://x.r2.dev/audio/。
+// 后者不要再补 audio/，否则会拼成 audio/audio/...。两种填法都给对。
+const _aPre = /(^|\/)audio\/$/.test(AUDIO_BASE) ? '' : 'audio/';
+const _ap = p => AUDIO_BASE + _aPre + p;
+
 const URLS = {
-  word: id => 'audio/words/' + id + '.mp3',
-  sent: (id, i) => 'audio/sent/' + id + (i ? '_' + i : '') + '.mp3',
-  letter: (t, i) => 'audio/letters/' + t + pad2(i) + '.mp3',
-  syl: (l, v) => 'audio/syl/s' + pad2(l) + pad2(v) + '.mp3',
-  conj: (id, i) => 'audio/conj/' + id + '/' + pad2(i) + '.mp3',
+  word: id => _ap('words/' + id + '.mp3'),
+  sent: (id, i) => _ap('sent/' + id + (i ? '_' + i : '') + '.mp3'),
+  letter: (t, i) => _ap('letters/' + t + pad2(i) + '.mp3'),
+  syl: (l, v) => _ap('syl/s' + pad2(l) + pad2(v) + '.mp3'),
+  conj: (id, i) => _ap('conj/' + id + '/' + pad2(i) + '.mp3'),
 };
 function playSrc(src, btn) {
   try {

@@ -137,25 +137,122 @@ git push
 
 ---
 
-## 六、那张 2 万文件的限额
+## 六、把音频拆到 R2（解决 2 万文件限额）
 
-Cloudflare Pages 免费版**每次部署最多 20,000 个文件**。你现在是 16,170 个（音频占 16,018），余量 3,830。
+Cloudflare Pages 免费版**每次部署最多 20,000 个文件**。你现在是 16,058 个（音频占 16,018），余 3,942。
 
 每加一个词会新增 **19 个文件**（词 1 + 例句 3 + 变位 15）：
 
 ```
-3830 ÷ 19 ≈ 200 个词
+3942 ÷ 19 ≈ 200 个词
 ```
 
-也就是说**再加 200 个词就会撞墙**，那时部署会直接失败并报 `Too many files`。
+也就是**再加 200 个词就会撞墙**，届时部署报 `Too many files` 直接失败。
 
-到那一步有三个选择：
+**建议现在就拆**，而不是等撞墙再返工 —— 拆完 Pages 上只剩 40 来个文件，词库想加多少加多少。
+R2 免费给 10GB 存储，**出网流量完全不计费**。
 
-1. **音频拆到 Cloudflare R2**（推荐）
-   R2 免费给 10GB 存储，**出网流量完全免费**。音频全部搬过去，Pages 上只剩 20 来个文件，从此不受限额。
-   要做的话告诉我，改 `assets/app.js:199` 的 `URLS` 常量加一个 base 前缀即可，约 4 行。
-2. **只上传用到的那几个词本**，其余音频留在本地（按词本切目录）
-3. **升级 Cloudflare Pages 付费版**（$20/月，文件上限提到 10 万）——测试版没必要
+### 6.1 建 bucket 并开公开访问
+
+1. Cloudflare 控制台 → **R2** → **Create bucket**，名字如 `krlearn-audio`
+2. 进 bucket → **Settings** → **Public access** → 开一个 `r2.dev` 子域
+   （会给你一个 `https://pub-xxxxx.r2.dev` 的地址。这个子域**有速率限制**，测试够用；
+   正式推要绑自己的域名，域名托管在 Cloudflare 的话免费）
+3. **R2** → **Manage R2 API Tokens** → **Create API token**
+   权限选 **Object Read & Write**，范围限定到这个 bucket
+4. 记下三样：**Account ID**（控制台右侧边栏）、**Access Key ID**、**Secret Access Key**
+
+### 6.2 上传音频
+
+```bash
+cd "D:/workbuddy工作台/2026-11-22-20-01-46/krlearn"
+
+pip install boto3
+
+export R2_ACCOUNT_ID=你的account_id
+export R2_ACCESS_KEY_ID=你的key
+export R2_SECRET_ACCESS_KEY=你的secret
+export R2_BUCKET=krlearn-audio
+export R2_PUBLIC_BASE=https://pub-xxxxx.r2.dev/
+
+python tools/upload_r2.py --dry     # 先看：16018 个文件 / 254MB
+python tools/upload_r2.py           # 开传，24 并发
+```
+
+脚本的行为：
+
+- 对象 key 保留 `audio/` 前缀（`audio/words/w0001.mp3`），跟本地目录结构一致
+- **先 list 远端已有对象再比对，已存在的跳过** —— 所以中断了直接重跑就能续
+- 可重复执行，`--force` 才会全量重传
+- 传完会打印应该填进 `index.html` 的那一行
+
+本机实测约 254MB / 16018 个文件。
+
+### 6.3 让页面指向 R2
+
+改 `index.html` 里那一行（在 `<script src="vendor/...">` 之前）：
+
+```js
+window.KR_AUDIO_BASE = 'https://pub-xxxxx.r2.dev/';
+```
+
+两种填法都对，代码会自动归一化：
+
+| 你填 | 实际请求 |
+|---|---|
+| `https://x.r2.dev/` | `https://x.r2.dev/audio/words/w0001.mp3` |
+| `https://x.r2.dev/audio/` | 同上（不会拼成 `audio/audio/`） |
+| 留空 `''` | `audio/words/w0001.mp3`（同域，跟以前一样） |
+
+**留空时行为与改造前完全一致**，所以本地开发、或者不拆 R2 的部署都不受影响。
+
+### 6.4 ⚠️ 关键一步：让 Pages 不要把音频也传上去
+
+如果你只改了 `KR_AUDIO_BASE` 而没做这步，**Pages 照样会把 16,018 个 mp3 传上去，照样撞限额**，
+只是页面不再请求它们而已。
+
+去 Cloudflare Pages 项目 → **Settings** → **Build configuration** → **Edit**，
+把 Build command 改成：
+
+```sh
+rm -rf audio tools _shot _verifytmp
+```
+
+Build output directory 仍然是 `/`。
+
+这样构建时先把音频从产物里删掉，部署上去的就只剩页面 + 数据（约 40 个文件）。
+仓库里仍然保留 `audio/` 目录，本地开发照常用。
+
+> 用 wrangler 直传的（`deploy.bat`）不用这步 —— `.wranglerignore` 里已经列了 `audio`。
+
+### 6.5 验证
+
+```bash
+# 1. 本地先确认指向生效：随便打开一个词条页，F12 看 Network 里 mp3 的域名
+双击 启动.bat
+
+# 2. 线上确认：部署后打开 https://krlearn.pages.dev，点一个喇叭
+#    Network 面板里 mp3 应该来自 pub-xxxxx.r2.dev，而且能正常播放
+```
+
+如果音频 403：bucket 的 Public access 没开，或者 key 前缀不对（进 bucket 看对象路径
+是不是 `audio/words/...`）。
+如果音频 404：`KR_AUDIO_BASE` 末尾少斜杠或者多写了 `audio`，按 6.3 的表核对。
+
+### 6.6 还剩哪些文件在 Pages 上
+
+拆完之后 Pages 部署的内容：
+
+```
+index.html  _headers  _routes?  约 3 个
+assets/    2 个
+vendor/    1 个
+data/      5 个（words.json 2.1MB 是最大的）
+README/DEPLOY/启动.bat/serve.py 等杂项
+```
+
+总共 40 个上下，**从 16,058 降到 40，余量 19,960 个文件**。
+以后词库加到 1 万个词也不会再受这个限制。
 
 ---
 
@@ -191,8 +288,10 @@ Cloudflare Pages 免费版**每次部署最多 20,000 个文件**。你现在是
 | 文件 | 作用 |
 |---|---|
 | `.gitignore` | 排除验证产物、`__pycache__`、CDP 步骤文件、一次性日志 |
+| `.gitattributes` | `* -text`，禁止 git 改换行（否则 `启动.bat` 的 CRLF 会被破坏） |
 | `_headers` | Cloudflare 缓存策略：音频 1 天强缓存、页面和词库每次验证 |
 | `tools/init_repo.sh` | 初始化仓库 + 分 5 批提交 |
+| `tools/upload_r2.py` | 把 audio/ 传到 R2，增量续传（第六节用） |
 | `deploy.bat` | wrangler 直传（备选路径） |
 | `DEPLOY.md` | 就是本文件 |
 

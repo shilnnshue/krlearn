@@ -12,3 +12,7 @@ serve.py
 DEPLOY.md
 data/audio_manifest.json
 data/audio_fixed_log.jsonl
+
+# 拆了 R2 之后再取消下面这行的注释。
+# 现在默认不排除 —— 不拆 R2 时音频必须跟着传上去，否则页面没声音。
+# audio

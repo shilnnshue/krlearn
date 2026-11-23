@@ -26,6 +26,14 @@
 <div id="toast"></div>
 
 <script>window.__errs=[];window.addEventListener('error',function(e){window.__errs.push(String(e.message)+' @'+e.filename+':'+e.lineno)});window.addEventListener('unhandledrejection',function(e){window.__errs.push('promise: '+String(e.reason))});</script>
+<script>
+/* 音频根路径 —— 拆 R2 / CDN 只改这一行。
+   同域（音频和页面在同一域名下）→ 留空，走相对路径 audio/...
+   音频放 Cloudflare R2 或其他 CDN → 填完整前缀，结尾斜杠可有可无：
+     window.KR_AUDIO_BASE = 'https://audio.example.com/';
+   写法带 || '' 是为了让外部注入（如自动化测试）能先设置再被保留。 */
+window.KR_AUDIO_BASE = window.KR_AUDIO_BASE || '';
+</script>
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="assets/app.js"></script>
 </body>
