@@ -18,28 +18,43 @@ QUICK=0
 FAIL=0
 line() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-line "== 1/4 数据自检（结构 + 音频文件 + 指纹 + 语法）=="
+# 跑一个 node 检查脚本，只回显最后 N 行，但退出码取脚本本身的。
+# 不能写成 `node x.js | tail -9`：管道退出码来自 tail，脚本失败会被吞掉。
+run_node() {   # $1=脚本  $2=回显行数
+  local out rc
+  out=$(NODE_PATH="$NODE_MODULES" "$NODE" "$1" 2>&1); rc=$?
+  printf '%s\n' "$out" | tail -n "$2"
+  [ "$rc" = "0" ] || FAIL=1
+}
+
+line "== 1/5 数据自检（结构 + 音频文件 + 指纹 + 语法）=="
 if "$PY" tools/check_data.py; then :; else FAIL=1; fi
 
-line "== 2/4 视图回归（node + jsdom，不依赖浏览器）=="
+SERVED=0
 # 注意：Windows 版 curl 写 /dev/null 会报 rc=23（Write error），必须让 shell 重定向
-if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then
-  if NODE_PATH="$NODE_MODULES" "$NODE" tools/jsdom_check.js "$BASE"; then :; else FAIL=1; fi
+if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then SERVED=1; fi
+
+line "== 2/5 视图回归（node + jsdom，不依赖浏览器）=="
+if [ "$SERVED" = "1" ]; then
+  run_node tools/jsdom_check.js "$BASE" 30
 else
   echo "✗ 本地服务没有响应（$BASE）"
   echo "  先双击「启动.bat」，或运行：KR_NO_BROWSER=1 python serve.py"
   FAIL=1
 fi
 
-if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then
-  line "== 3/4 语法栏目交互（筛选 / 搜索 / 详情 / 返回保持状态）=="
-  if NODE_PATH="$NODE_MODULES" "$NODE" tools/check_grammar.js 2>&1 | tail -9; then :; else FAIL=1; fi
-fi
+line "== 3/5 语法栏目交互（筛选 / 搜索 / 详情 / 音频 / 返回保持状态）=="
+if [ "$SERVED" = "1" ]; then run_node tools/check_grammar.js 14; else echo "跳过（服务未启动）"; FAIL=1; fi
+
+line "== 4/5 赞赏页（收款码缺失时的降级）=="
+if [ "$SERVED" = "1" ]; then run_node tools/check_pay.js 12; else echo "跳过（服务未启动）"; FAIL=1; fi
 
 if [ "$QUICK" = "0" ]; then
-  line "== 4/4 音频体检（只报告，不修）=="
+  line "== 5/5 音频体检（只报告，不修）=="
   # --stale 按 mtime 找「数据改过、音频没跟上」的条目；数量为 0 就是全齐
-  if KR_CONC=8 "$PY" tools/audit_audio.py --stale --dry 2>&1 | tail -6; then :; else FAIL=1; fi
+  out=$(KR_CONC=8 "$PY" tools/audit_audio.py --stale --dry 2>&1); rc=$?
+  printf '%s\n' "$out" | tail -6
+  [ "$rc" = "0" ] || FAIL=1
 fi
 
 echo

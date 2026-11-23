@@ -253,6 +253,31 @@ def main():
                     fail("语法 %s 第 %d 条例句不完整" % (tag, j + 1))
                 elif not kk.endswith((".", "?", "!")):
                     fail("语法 %s 第 %d 条韩语例句没加标点：%s" % (tag, j + 1, kk))
+
+        # 语法例句音频：audio/grammar/ex/gNNN_n.mp3
+        try:
+            gman = rd("audio_manifest.json")
+        except Exception:
+            gman = {}
+        miss_g = gstale = gsame = 0
+        for g in gram:
+            gid = g.get("id")
+            for j, e in enumerate(g.get("ex") or [], 1):
+                fn = "%s_%d.mp3" % (gid, j)
+                if not size_ok(os.path.join(AUD, "grammar", "ex", fn)):
+                    miss_g += 1
+                rel = "grammar/ex/" + fn
+                if rel in gman:
+                    if gman[rel] == md5(str(e.get("kr", ""))):
+                        gsame += 1
+                    else:
+                        gstale += 1
+        if miss_g:
+            fail("语法例句音频缺失 %d 条（跑 python tools/gen_audio.py）" % miss_g)
+        if gstale:
+            fail("语法例句音频指纹不符 %d 条（例句改过但音频没重生成）" % gstale)
+        if gsame or gstale:
+            print("语法音频：核对 %d 条，一致 %d" % (gsame + gstale, gsame))
     elif gram is not None:
         fail("grammar.json 应该是数组")
 

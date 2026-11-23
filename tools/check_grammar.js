@@ -1,6 +1,9 @@
-// 语法栏目交互回归：筛选、搜索、无匹配提示、详情导航、返回后状态保持。
+// 语法栏目交互回归：筛选、搜索、无匹配提示、详情导航、返回后状态保持、例句音频。
 // 用法：node tools/check_grammar.js（需要本地服务跑在 8765）
 const { JSDOM, VirtualConsole } = require('jsdom');
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..');
 const BASE = 'http://127.0.0.1:8765/index.html';
 
 (async () => {
@@ -74,9 +77,31 @@ const BASE = 'http://127.0.0.1:8765/index.html';
   console.log('详情页标题：', (doc.querySelector('#tb-title') || {}).textContent);
   console.log('  形态：', (doc.querySelector('.g-form-xl') || {}).textContent,
     '/ 接续：', (doc.querySelector('.kv-v') || {}).textContent);
-  console.log('  例句数：', doc.querySelectorAll('.g-card .ex-item').length);
+  const boxes = [...doc.querySelectorAll('.g-card .ex-item')];
+  console.log('  例句数：', boxes.length, '/ 带音频地址：',
+    boxes.filter(b => b.dataset.play).length);
   console.log('  上一条按钮：', doc.querySelector('.g-nav .btn') ?
     doc.querySelector('.g-nav .btn').textContent.trim() : '(无)');
+
+  // ---- 例句音频断言 ----
+  let bad = 0;
+  const urlsG = boxes.map(b => b.dataset.play || '');
+  urlsG.forEach((u, i) => {
+    if (!/^audio\/grammar\/ex\/g\d{3}_\d\.mp3$/.test(u)) { bad++; console.log('    ✗ 地址异常：' + JSON.stringify(u)); }
+    else if (!fs.existsSync(path.join(ROOT, u))) { bad++; console.log('    ✗ 文件不存在：' + u); }
+  });
+  if (urlsG.length !== 3) { bad++; console.log('    ✗ 例句音频条数应为 3，实际 ' + urlsG.length); }
+  console.log('  地址与文件：', bad ? bad + ' 处异常' : '全部正常');
+
+  // 点整条框（不点喇叭），验证真的走到播放器并高亮
+  boxes[0].click();
+  await wait(80);
+  const au = win.__krAudio ? win.__krAudio() : null;
+  console.log('  点框后：src =', au && au.src, '/ 高亮块 =', au && au.playing);
+  if (!au || !/_1\.mp3$/.test(au.src || '')) { bad++; console.log('    ✗ 点框没有触发第一条音频'); }
+  if (!au || au.playing !== 1) { bad++; console.log('    ✗ 高亮块数量应为 1'); }
+
+  console.log('  → 音频断言：', bad ? ('FAIL（' + bad + ' 项）') : 'PASS');
 
   // 返回列表，筛选是否保持
   doc.querySelector('#btn-back').click();
@@ -85,6 +110,8 @@ const BASE = 'http://127.0.0.1:8765/index.html';
     '/ 搜索框值「' + (doc.querySelector('#g-search') || {}).value + '」');
 
   console.log('\nJS 错误：', errs.length ? errs.slice(0, 3) : '无');
+  const ok = !errs.length && !bad;
+  console.log('RESULT:', ok ? 'PASS' : 'FAIL');
   dom.window.close();
-  process.exit(0);
+  process.exit(ok ? 0 : 1);
 })();

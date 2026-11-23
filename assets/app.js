@@ -216,6 +216,7 @@ const URLS = {
   letter: (t, i) => _ap('letters/' + t + pad2(i) + '.mp3'),
   syl: (l, v) => _ap('syl/s' + pad2(l) + pad2(v) + '.mp3'),
   conj: (id, i) => _ap('conj/' + id + '/' + pad2(i) + '.mp3'),
+  gex: (id, i) => _ap('grammar/ex/' + id + '_' + i + '.mp3'),
 };
 function playSrc(src, btn) {
   try {
@@ -261,7 +262,7 @@ let route = { name: 'home', arg: null };
 const TITLES = {
   home: '한글·学', alpha: '字母与发音', dict: '词典', stats: '学习统计',
   settings: '设置', list: '列表', entry: '词条', note: '我的笔记', sent: '收藏句子', deck: '切换词本',
-  grammar: '语法'
+  grammar: '语法', support: '赞赏'
 };
 function go(name, arg, push) {
   route = { name, arg: arg || null };
@@ -287,6 +288,7 @@ $('#btn-back').addEventListener('click', () => {
   if (route.name === 'home') return;
   if (route.name === 'entry') return go('dict');
   if (route.name === 'grammar' && route.arg) return go('grammar');
+  if (route.name === 'support') return go('settings');
   if (route.name === 'note' || route.name === 'sent' || route.name === 'deck') return go('settings');
   go('home');
 });
@@ -329,6 +331,7 @@ function render() {
     case 'sent': v.innerHTML = viewSent(); break;
     case 'deck': v.innerHTML = viewDecks(); break;
     case 'grammar': v.innerHTML = route.arg ? viewGrammarDetail(route.arg) : viewGrammar(); break;
+    case 'support': v.innerHTML = viewSupport(); break;
     default: v.innerHTML = viewHome();
   }
   $('#tb-title').textContent = TITLES[route.name] || '한글·学';
@@ -1377,8 +1380,16 @@ function viewGrammarDetail(id) {
 
   <div class="sec-title">例句 · ${g.ex.length} 条</div>
   <div class="card g-card">
-    ${g.ex.map(e => `<div class="ex-item"><div class="ex-ko">${esc(e.kr)}</div>`
-      + `<div class="ex-zh">${esc(e.zh)}</div></div>`).join('')}
+    ${g.ex.map((e, i) => `
+    <div class="ex-item" data-play="${esc(URLS.gex(g.id, i + 1))}">
+      <div class="ex-top">
+        <div style="flex:1">
+          <div class="ex-ko kr">${esc(e.kr)}</div>
+          <div class="ex-zh">${esc(e.zh)}</div>
+        </div>
+        ${spk(URLS.gex(g.id, i + 1), 28)}
+      </div>
+    </div>`).join('')}
   </div>
 
   ${g.note ? `<div class="sec-title">易错点</div>
@@ -1515,6 +1526,11 @@ function viewSettings() {
     <div class="row click" data-act="reset"><div class="r-main"><div class="r-title" style="color:var(--warn)">清空全部进度</div><div class="r-sub">不可恢复</div></div>${ICON.chev}</div>
   </div>
 
+  <div class="sec-title">关于</div>
+  <div class="card">
+    <div class="row click" data-go="support"><div class="r-main"><div class="r-title">赞赏支持</div><div class="r-sub">全部功能免费，赞赏纯属自愿，不解锁任何东西</div></div>${ICON.chev}</div>
+  </div>
+
   <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:34px;line-height:1.9">
     한글·学　v1.0<br>
     识别型韩语学习 · FSRS 记忆调度<br>
@@ -1522,8 +1538,70 @@ function viewSettings() {
   </div>`;
 }
 
+/* ==================== 赞赏 ==================== */
+// 收款码图片按约定路径放，放上去就自动显示：
+//   assets/pay/wechat.png   微信赞赏码 / 收款码
+//   assets/pay/alipay.png   支付宝收款码
+// 图片缺失时整块隐藏 —— 线上不给访客看到空框；只有本机（localhost / file://）
+// 才把「图该放哪儿」的提示露出来，方便自己调试。
+const PAY = [
+  { k: 'wechat', name: '微信', file: 'assets/pay/wechat.png', tip: '微信扫一扫，或长按识别' },
+  { k: 'alipay', name: '支付宝', file: 'assets/pay/alipay.png', tip: '支付宝扫一扫，或长按识别' },
+];
+
+function viewSupport() {
+  const boxes = PAY.map(p => `
+    <div class="pay-box" data-pay="${p.k}">
+      <div class="pay-hd"><span class="pay-name">${p.name}</span><span class="pay-tip">${p.tip}</span></div>
+      <img class="pay-img" src="${p.file}" alt="${p.name}收款码">
+    </div>`).join('');
+
+  return `
+  <div class="pay-hero">
+    <div class="pay-t">谢谢你把韩语学下去</div>
+    <div class="pay-s">这里的功能全部免费——没有会员、没有广告、没有「看广告解锁下一课」。
+      音频、词库、语法都是本地文件，跑在你自己的设备上。<br>
+      如果你觉得它省了你的时间，可以自愿打赏一杯咖啡的钱。<b>不打赏也不影响任何东西。</b></div>
+  </div>
+
+  <div class="pay-grid">${boxes}</div>
+
+  <div class="pay-dev" id="pay-dev" hidden>
+    本机提示：还没找到收款码图片。把图片放到下面这两个位置，刷新即可显示（线上访客看不到这条提示）。<br>
+    <code>assets/pay/wechat.png</code> · <code>assets/pay/alipay.png</code><br>
+    建议：正方形 PNG，边长 600px 以上；微信「我 → 服务 → 收付款 → 赞赏码」可保存原图。
+  </div>
+
+  <div class="pay-foot">钱不进服务器——这个页面没有后端，赞赏码只是一张静态图片。</div>`;
+}
+
 /* ==================== 事件绑定 ==================== */
 function bindView() {
+  // 赞赏码：图不存在就整块藏掉，线上不留空框；本机才把「该放哪儿」露出来
+  const payBoxes = [...document.querySelectorAll('[data-pay]')];
+  if (payBoxes.length) {
+    const local = /^(localhost|127\.0\.0\.1|\[::1\]|)$/.test(location.hostname);
+    let alive = payBoxes.length;
+    const gone = () => {
+      if (--alive > 0) return;
+      const n = document.querySelector('#pay-dev');
+      if (n && local) n.hidden = false;
+    };
+    payBoxes.forEach(box => {
+      const img = box.querySelector('img');
+      let settled = false;
+      const kill = () => {
+        if (settled) return;
+        settled = true;
+        box.style.display = 'none';
+        gone();
+      };
+      const good = () => { if (settled) return; settled = true; box.classList.add('ok'); };
+      img.addEventListener('error', kill);
+      img.addEventListener('load', good);
+      if (img.complete) (img.naturalWidth > 0 ? good : kill)();
+    });
+  }
   document.querySelectorAll('[data-go]').forEach(b => {
     b.onclick = () => {
       const g = b.dataset.go.split('/');

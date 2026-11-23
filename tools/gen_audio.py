@@ -3,6 +3,7 @@
 - 字母：19 辅音 + 21 元音 + 8 代表收音
 - 音节表：19×21 = 399 个无收音音节
 - 单词 + 例句
+- 语法例句（data/grammar.json 里的 ex）
 支持断点续跑（已存在的文件跳过）
 """
 import asyncio, json, os, sys, time
@@ -100,6 +101,18 @@ def tasks():
         out.append((w["korean"], os.path.join(d, w["id"] + ".mp3"), VOICE_F))
         for i, ex in enumerate(w.get("examples") or [], 1):
             out.append((ex["ko"], os.path.join(ds, "%s_%d.mp3" % (w["id"], i)), VOICE_F))
+
+    # 语法例句。只念句子，不念语法形态本身 —— 67 条里有 31 条形态带
+    # -아/어요、-(으)ㄹ 거예요 这类标注符号，直接丢给 TTS 会念成
+    # 「아 슬래시 어요」，比不念更糟。
+    ge = os.path.join(AUD, "grammar", "ex"); os.makedirs(ge, exist_ok=True)
+    try:
+        gram = json.load(open(os.path.join(DATA, "grammar.json"), encoding="utf-8"))
+    except Exception:
+        gram = []
+    for g in gram:
+        for i, ex in enumerate(g.get("ex") or [], 1):
+            out.append((ex["kr"], os.path.join(ge, "%s_%d.mp3" % (g["id"], i)), VOICE_F))
     return out
 
 
