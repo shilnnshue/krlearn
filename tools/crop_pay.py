@@ -13,7 +13,7 @@ import io
 import os
 import sys
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 SRC = {
     "wechat": r"D:\WeChatData\xwechat_files\wxid_hnyjetk72ryq22_e0f0\temp\RWTemp\2026-11\9e20f478899dc29eb19741386f9343c8\0135cfd17aea217a5b95b0833f3dc2f8.jpg",
@@ -71,6 +71,31 @@ def find_card(im):
     return x0 + pad, y0 + pad, x1 - pad, y1 - pad
 
 
+def dark_box(im, card, ratio=0.25):
+    """在白卡里找出「二维码本体」的外接矩形。
+
+    为什么要单独找：微信和支付宝导出的白卡留白比例不一样（微信的上下留白更宽，
+    底下还多一行昵称），按白卡裁的话两张 fig 显示成同样 250px 宽，二维码本体
+    却一个大一个小。按二维码本体对齐才能视觉一致。
+    昵称文字是深色但笔画只占那一行的 10% 左右，阈值取 0.25 就能滤掉
+    （取 0.15 时微信那行较长的昵称会被算进本体，导致高度多出 60px）。
+    """
+    x0, y0, x1, y1 = card
+    px = im.convert("L").load()
+    rows, cols = [], []
+    for y in range(y0, y1):
+        n = sum(1 for x in range(x0, x1, 2) if px[x, y] < 110)
+        rows.append(n / ((x1 - x0) / 2))
+    for x in range(x0, x1):
+        n = sum(1 for y in range(y0, y1, 2) if px[x, y] < 110)
+        cols.append(n / ((y1 - y0) / 2))
+    ys = [y0 + i for i, v in enumerate(rows) if v >= ratio]
+    xs = [x0 + i for i, v in enumerate(cols) if v >= ratio]
+    if not xs or not ys:
+        return card
+    return xs[0], ys[0], xs[-1] + 1, ys[-1] + 1
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, src in SRC.items():
@@ -78,18 +103,33 @@ def main():
             print("缺文件：", src)
             continue
         im = Image.open(src)
-        box = find_card(im)
-        card = im.crop(box).convert("RGB")
-        # 二维码要方正好扫；白卡本身带昵称文字，比正方形略高，保持原比例更自然
-        # 统一缩到宽 480，足够 2x 屏清晰，又不影响体积
-        cw, ch = card.size
-        if cw > 480:
-            card = card.resize((480, round(ch * 480 / cw)), Image.LANCZOS)
+        card = find_card(im)
+        bx0, by0, bx1, by1 = dark_box(im, card)
+
+        # 二维码本体之外的区域（底部的昵称文字）先涂白。
+        # 不涂的话，正方形往下多留的那几十像素静区会把昵称顶部切一条黑边进来，
+        # 在页面白底上看着像脏污。
+        clean = im.convert("RGB")
+        draw = ImageDraw.Draw(clean)
+        draw.rectangle([card[0], card[1], card[2], by0], fill=(255, 255, 255))
+        draw.rectangle([card[0], by1, card[2], card[3]], fill=(255, 255, 255))
+
+        # 以二维码本体为中心裁正方形，四周各留 11% 静区。
+        # QR 规范要求 4 个模块宽的静区：348px 宽的码约 45 模块 → 每模块 7.7px，
+        # 4 模块 = 31px，所以每边留白必须 > 31px，1.22 倍对应 38px，够。
+        side = max(bx1 - bx0, by1 - by0) * 1.22
+        side = min(side, card[2] - card[0], card[3] - card[1])
+        cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
+        sx = max(card[0], min(int(round(cx - side / 2)), card[2] - int(side)))
+        sy = max(card[1], min(int(round(cy - side / 2)), card[3] - int(side)))
+
+        out = clean.crop((sx, sy, sx + int(side), sy + int(side)))
+        out = out.resize((480, 480), Image.LANCZOS)
         dst = os.path.join(OUT, name + ".png")
-        card.save(dst, "PNG", optimize=True)
-        print("%-7s 原图 %s → 裁切 %s → 输出 %s  %d KB"
-              % (name, im.size, (box[2] - box[0], box[3] - box[1]),
-                 card.size, os.path.getsize(dst) // 1024))
+        out.save(dst, "PNG", optimize=True)
+        print("%-7s 原图 %s → 二维码本体 %s → 方形裁切 %s → 480×480  %d KB"
+              % (name, im.size, (bx1 - bx0, by1 - by0),
+                 (int(side), int(side)), os.path.getsize(dst) // 1024))
 
 
 if __name__ == "__main__":

@@ -65,6 +65,18 @@ const ok = (cond, label, extra) => {
   console.log('  文件大小：', sizes.map((n, i) => srcs[i].split('/').pop() + '=' + Math.round(n / 1024) + 'KB').join(' '));
   ok(sizes.every(n => n > 8000), '图片不是占位空文件（>8KB）');
 
+  // 两张二维码图必须是同尺寸的等边正方形。
+  // 否则 img 的 CSS 宽度一样，二维码本体在视觉上却一个大一个小（踩过一次：
+  // 微信白卡留白比支付宝多，按白卡裁出来的图并排摆着明显不齐）。
+  const pngSize = f => {
+    const b = fs.readFileSync(path.join(ROOT, f));
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+  };
+  const dims = srcs.map(pngSize);
+  console.log('  像素尺寸：', dims.map((d, i) => srcs[i].split('/').pop() + '=' + d.w + '×' + d.h).join(' '));
+  ok(dims.every(d => d.w === d.h), '两张码都是正方形');
+  ok(dims.every(d => d.w === dims[0].w), '两张码像素尺寸相同');
+
   // 结构：hero 有徽标和标题，两张卡各有一个品牌胶囊 + 桌面/手机两条提示
   ok(!!doc.querySelector('.pay-hero .pay-kicker'), 'hero 有「赞赏支持」徽标');
   ok((doc.querySelectorAll('.pay-box .pay-brand').length) === 2, '两张卡都有品牌色胶囊');

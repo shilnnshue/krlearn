@@ -26,3 +26,6 @@ desktop.ini
 .workbuddy/
 node_modules/
 .wrangler/
+
+# CDP 截图验收产物（本地看效果用，不进仓库）
+shots/
