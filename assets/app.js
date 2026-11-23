@@ -36,7 +36,7 @@ function toast(msg) {
 
 /* ==================== 存储 ==================== */
 const DEFAULTS = {
-  settings: { deck: 'yonsei1', theme: 'auto', accent: 'jade', newPerDay: 20, mode: 'classic', roman: true, showZh: true, autoWord: false, autoSent: false },
+  settings: { deck: 'yonsei1', theme: 'auto', accent: 'jade', newPerDay: 20, mode: 'classic', roman: true, showZh: true, autoWord: false, autoSent: false, ttsFallback: true },
   progress: {}, log: {}, notes: {}, sentStar: {}, customDecks: []
 };
 let DB = JSON.parse(JSON.stringify(DEFAULTS));
@@ -180,14 +180,56 @@ let AQ = [], aqTimer = null;
 function aqNext() {
   if (!AQ.length) return;
   const it = AQ.shift();
-  playSrc(it.src, it.el || null);
+  playSrc(it.src, it.el || null, it.text || '');
 }
 function playSeq(items) { audioStop(); AQ = items.slice(); aqNext(); }
 function aqStop() { AQ = []; if (aqTimer) { clearTimeout(aqTimer); aqTimer = null; } }
-// 硬停：清队列 + 掐断正在响的那一条。翻页、切页、退出都必须走这个，
-// 只清队列的话当前那条会一直念到结尾。
+
+/* ---------- 联网朗读兜底 ----------
+ * 正常情况全部走预生成的 mp3（16219 条，零延迟、离线可用、发音统一）。
+ * 只有这条音频**真的取不到**时才退到浏览器自带的 speechSynthesis，
+ * 典型场景是用户自己导入的词库（那些词没有对应 mp3）。
+ * 音色不如 edge-tts 的 SunHi，但总比点了没反应好，而且完全不影响已有音频。
+ */
+const HAS_TTS = typeof window !== 'undefined' && 'speechSynthesis' in window;
+let curSayText = '';          // 当前这条「应该念什么」，mp3 缺失时用它
+function koVoice() {
+  if (!HAS_TTS) return null;
+  const vs = window.speechSynthesis.getVoices() || [];
+  // 语音列表首次调用往往是空的、异步才填好；为空时只设 lang，让浏览器自己挑
+  return vs.find(v => /^ko[-_]?KR/i.test(v.lang)) || vs.find(v => /^ko\b/i.test(v.lang)) || null;
+}
+function speechStop() {
+  curSayText = '';
+  if (!HAS_TTS) return;
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+}
+function speechSay(text, btn) {
+  if (!HAS_TTS || !text) return false;
+  if (DB.settings && DB.settings.ttsFallback === false) return false;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR';
+    const v = koVoice();
+    if (v) u.voice = v;
+    u.rate = 0.92;               // 跟 edge-tts 那边的 rate=-10% 对齐
+    if (curSpkBtn && curSpkBtn !== btn) curSpkBtn.classList.remove('playing');
+    if (btn) { btn.classList.add('playing'); curSpkBtn = btn; }
+    u.onend = u.onerror = () => {
+      if (btn) btn.classList.remove('playing');
+      if (curSpkBtn === btn) curSpkBtn = null;
+      if (AQ.length) aqTimer = setTimeout(() => { aqTimer = null; aqNext(); }, 300);
+    };
+    window.speechSynthesis.speak(u);
+    return true;
+  } catch (e) { return false; }
+}
+
+// 硬停：清队列 + 掐断正在响的那一条。mp3 和兜底朗读都得停，
+// 只清队列的话当前那条会一直念到结尾（翻页、切页、退出都必须走这个）。
 function audioStop() {
   aqStop();
+  speechStop();
   try { AU.pause(); AU.currentTime = 0; } catch (e) {}
   if (curSpkBtn) { curSpkBtn.classList.remove('playing'); curSpkBtn = null; }
   document.querySelectorAll('.sent-box.playing').forEach(el => el.classList.remove('playing'));
@@ -219,27 +261,39 @@ const URLS = {
   conj: (id, i) => _ap('conj/' + id + '/' + pad2(i) + '.mp3'),
   gex: (id, i) => _ap('grammar/ex/' + id + '_' + i + '.mp3'),
 };
-function playSrc(src, btn) {
+function playSrc(src, btn, text) {
+  curSayText = text || (btn && btn.dataset ? (btn.dataset.saytext || '') : '') || '';
   try {
     AU.pause(); AU.currentTime = 0; AU.src = src;
     const p = AU.play();
-    if (p && p.catch) p.catch(() => { if (AU.error) toast('音频未生成或缺失'); });
+    if (p && p.catch) p.catch(err => {
+      // NotAllowedError = 自动播放被浏览器拦了，不是音频缺失，绝不能拿来念
+      if (err && err.name === 'NotAllowedError') return;
+      // 音频真的取不到（导入词 / 还没生成）→ 用浏览器朗读顶一下
+      if (speechSay(curSayText, btn)) return;
+      toast('音频未生成或缺失');
+    });
     if (curSpkBtn) curSpkBtn.classList.remove('playing');
     if (btn) { btn.classList.add('playing'); curSpkBtn = btn; }
   } catch (e) { toast('无法播放'); }
 }
-function spk(src, size, tag) {
+function spk(src, size, tag, text) {
   const s = size || 30;
   const t = tag || 'button';
   // 放在 <button> 选项里时必须用 span —— button 不能嵌套 button，
   // 浏览器会把内层提出来，变成每个选项下面挂个孤零零的喇叭。
   const role = t === 'span' ? ' role="button"' : '';
-  return '<' + t + ' class="spk" data-play="' + esc(src) + '"' + role +
+  // data-saytext 是「这条该念什么」，只在 mp3 缺失时用；有音频就完全用不到
+  const say = text ? ' data-saytext="' + esc(text) + '"' : '';
+  return '<' + t + ' class="spk" data-play="' + esc(src) + '"' + role + say +
     ' style="width:' + s + 'px;height:' + s + 'px">' + ICON.spk + '</' + t + '>';
 }
 // 调试钩子：给验收脚本读播放状态用（只读，不影响任何功能）
 window.__krAudio = () => ({ paused: AU.paused, pos: +AU.currentTime.toFixed(2), queue: AQ.length,
-                            src: (AU.src || '').split('/').pop(), playing: document.querySelectorAll('.playing').length });
+                            src: (AU.src || '').split('/').pop(),
+                            playing: document.querySelectorAll('.playing').length,
+                            tts: HAS_TTS ? window.speechSynthesis.speaking : null,
+                            say: curSayText });
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-play]');
@@ -558,10 +612,10 @@ function autoReadBack(w) {
   const st = DB.settings || {};
   if (!st.autoWord && !st.autoSent) return;
   const seq = [];
-  if (st.autoWord) seq.push({ src: URLS.word(w.id), el: null });
+  if (st.autoWord) seq.push({ src: URLS.word(w.id), el: null, text: w.korean });
   if (st.autoSent) {
     (w.examples || []).forEach((e, i) => {
-      seq.push({ src: URLS.sent(w.id, i + 1), el: document.getElementById('sb' + i) });
+      seq.push({ src: URLS.sent(w.id, i + 1), el: document.getElementById('sb' + i), text: e.ko });
     });
   }
   if (seq.length) playSeq(seq);
@@ -590,7 +644,7 @@ function renderStudy() {
   if (Ses.phase === 'front') {
     body = `
       <div class="study-body center">
-        <div class="flashcard" data-flip="1" data-say="${esc(URLS.word(w.id))}" data-copy="${esc(w.korean)}">
+        <div class="flashcard" data-flip="1" data-say="${esc(URLS.word(w.id))}" data-saytext="${esc(w.korean)}" data-copy="${esc(w.korean)}">
           <div class="word kr">${esc(w.korean)}</div>
           <div class="tap-hint">轻点翻面　·　双击听发音　·　长按复制</div>
         </div>
@@ -604,9 +658,9 @@ function renderStudy() {
   } else if (Ses.phase === 'back') {
     body = `
       <div class="study-body center">
-        <div class="flashcard" data-say="${esc(URLS.word(w.id))}" data-copy="${esc(w.korean)}" style="min-height:0;flex:0 0 auto;justify-content:flex-start">
+        <div class="flashcard" data-say="${esc(URLS.word(w.id))}" data-saytext="${esc(w.korean)}" data-copy="${esc(w.korean)}" style="min-height:0;flex:0 0 auto;justify-content:flex-start">
           <div class="word kr" style="font-size:clamp(38px,10vw,58px)">${esc(w.korean)}</div>
-          <div style="margin-top:12px">${spk(URLS.word(w.id), 34)}</div>
+          <div style="margin-top:12px">${spk(URLS.word(w.id), 34, null, w.korean)}</div>
           <div class="meaning">${esc(w.chinese)}</div>
           <div class="pos"><span class="pill acc">${esc(w.pos)}</span> ${w.topik ? '<span class="pill">TOPIK ' + w.topik + '</span>' : ''}</div>
           ${exsC.map((e, ei) => `
@@ -616,7 +670,7 @@ function renderStudy() {
                 <div class="ko kr">${esc(e.ko)}</div>
                 <div class="zh">${esc(e.zh)}</div>
               </div>
-              ${spk(URLS.sent(w.id, ei + 1), 30)}
+              ${spk(URLS.sent(w.id, ei + 1), 30, null, e.ko)}
             </div>
           </div>`).join('')}
         </div>
@@ -634,9 +688,9 @@ function renderStudy() {
   } else if (Ses.phase === 'quick') {
     body = `
       <div class="study-body center">
-        <div class="flashcard" data-say="${esc(URLS.word(w.id))}" data-copy="${esc(w.korean)}">
+        <div class="flashcard" data-say="${esc(URLS.word(w.id))}" data-saytext="${esc(w.korean)}" data-copy="${esc(w.korean)}">
           <div class="word kr">${esc(w.korean)}</div>
-          <div style="margin-top:14px">${spk(URLS.word(w.id), 36)}</div>
+          <div style="margin-top:14px">${spk(URLS.word(w.id), 36, null, w.korean)}</div>
           <div class="meaning" style="margin-top:22px">${esc(w.chinese)}</div>
           <div class="pos"><span class="pill">${esc(w.pos)}</span></div>
         </div>
@@ -698,21 +752,21 @@ function renderQuizBody() {
   if (dir === 'k2z') {
     stemHtml = `<div class="q-tag">看韩文选释义</div>
       <div class="big kr">${esc(w.korean)}</div>
-      <div style="margin-top:14px">${spk(URLS.word(w.id), 36)}</div>`;
+      <div style="margin-top:14px">${spk(URLS.word(w.id), 36, null, w.korean)}</div>`;
   } else if (dir === 'z2k') {
     stemHtml = `<div class="q-tag">看释义选韩文</div>
       <div class="big" style="font-size:26px">${esc(w.chinese)}</div>
       <div style="font-size:12.5px;color:var(--muted);margin-top:8px">${esc(w.pos)}</div>`;
   } else {
     stemHtml = `<div class="q-tag">听音选义</div>
-      <div style="margin:6px 0">${spk(URLS.word(w.id), 64)}</div>
+      <div style="margin:6px 0">${spk(URLS.word(w.id), 64, null, w.korean)}</div>
       <div style="font-size:12.5px;color:var(--muted)">可反复重听</div>`;
   }
 
   const opts = q.opts.map((o, i) => {
     const label = dir === 'z2k' ? o.korean : o.chinese;
     const krCls = dir === 'z2k' ? ' kr' : '';
-    const spkBtn = dir === 'z2k' ? spk(URLS.word(o.id), 28, 'span') : '';
+    const spkBtn = dir === 'z2k' ? spk(URLS.word(o.id), 28, 'span', o.korean) : '';
     return `<button class="opt" data-opt="${esc(o.id)}">
       <span class="idx">${'ABCD'[i]}</span>
       <span class="txt${krCls}" ${dir === 'z2k' ? 'style="font-size:19px"' : ''}>${esc(label)}</span>
@@ -778,7 +832,7 @@ function bindStudy() {
   const card = box.querySelector('.flashcard');
   if (card && card.dataset.say) {
     let tapT = null, lp = null;
-    const fire = () => playSrc(card.dataset.say);
+    const fire = () => playSrc(card.dataset.say, null, card.dataset.saytext || '');
     card.addEventListener('click', e => {
       if (e.target.closest('[data-play]')) return;
       if (card.dataset.lp === '1') { card.dataset.lp = ''; return; }
@@ -1166,7 +1220,7 @@ function viewEntry(id) {
       if (!rows.length) return '';
       return `<tr class="grp"><td colspan="3">${gname}</td></tr>` + rows.map(({ r, i }) => `
         <tr><td class="lbl">${esc(r.label)}</td><td class="val kr">${esc(r.form)}</td>
-        <td class="act">${spk(URLS.conj(id, i), 26)}</td></tr>`).join('');
+        <td class="act">${spk(URLS.conj(id, i), 26, null, r.form)}</td></tr>`).join('');
     }).join('');
   }
 
@@ -1182,7 +1236,7 @@ function viewEntry(id) {
           ${statePill(w)}
         </div>
       </div>
-      ${spk(URLS.word(id), 44)}
+      ${spk(URLS.word(id), 44, null, w.korean)}
     </div>
     <div class="zh">${esc(w.chinese)}</div>
   </div>
@@ -1197,7 +1251,7 @@ function viewEntry(id) {
           <div class="ex-zh">${esc(e.zh)}</div>
         </div>
         <span class="ex-lv ${e.level === 1 ? 'l1' : ''}">${['', '初', '中', '高'][e.level || 1]}</span>
-        ${spk(URLS.sent(id, i + 1), 28)}
+        ${spk(URLS.sent(id, i + 1), 28, null, e.ko)}
       </div>
     </div>`).join('')}
   </div>` : '<div class="card" style="padding:16px 18px;color:var(--muted);font-size:13px">这条例句还没配</div>'}
@@ -1257,7 +1311,7 @@ function viewList(kind) {
         </div>
         ${statePill(w)}
         ${kind === 'mastered' ? `<button class="pill" data-master="${w.id}" style="cursor:pointer">移回</button>` : ''}
-        ${spk(URLS.word(w.id), 28)}
+        ${spk(URLS.word(w.id), 28, null, w.korean)}
       </div>`).join('')}
   </div>` : `<div class="empty"><div class="ic">∅</div><div class="t">这里还是空的</div></div>`}
   ${list.length > shown.length ? `<button class="btn btn-ghost btn-block" style="margin-top:14px" data-act="morelist">还有 ${list.length - shown.length} 个 · 显示更多</button>` : ''}
@@ -1288,7 +1342,7 @@ function viewSent() {
       <div class="r-main click" data-entry="${id}">
         <div class="r-title kr" style="font-size:15.5px">${esc(w.examples && w.examples[0] ? w.examples[0].ko : w.korean)}</div>
         <div class="r-sub">${esc(w.examples && w.examples[0] ? w.examples[0].zh : w.chinese)}</div>
-      </div>${spk(URLS.sent(id, 1), 28)}</div>`;
+      </div>${spk(URLS.sent(id, 1), 28, null, w.examples && w.examples[0] ? w.examples[0].ko : w.korean)}</div>`;
   }).join('')}</div>` : `<div class="empty"><div class="ic">❝</div><div class="t">还没有收藏句子</div></div>`}`;
 }
 
@@ -1394,7 +1448,7 @@ function viewGrammarDetail(id) {
           <div class="ex-ko kr">${esc(e.kr)}</div>
           <div class="ex-zh">${esc(e.zh)}</div>
         </div>
-        ${spk(URLS.gex(g.id, i + 1), 28)}
+        ${spk(URLS.gex(g.id, i + 1), 28, null, e.kr)}
       </div>
     </div>`).join('')}
   </div>
@@ -1505,6 +1559,8 @@ function viewSettings() {
       <button class="sw-tg${s.autoWord ? ' on' : ''}" data-tg="autoWord" aria-label="自动读单词"><i></i></button></div>
     <div class="row"><div class="r-main"><div class="r-title">自动读例句</div><div class="r-sub">接着逐条把例句念完</div></div>
       <button class="sw-tg${s.autoSent ? ' on' : ''}" data-tg="autoSent" aria-label="自动读例句"><i></i></button></div>
+    <div class="row"><div class="r-main"><div class="r-title">缺音频时朗读</div><div class="r-sub">自己导入的词没有配音，用浏览器自带语音顶上。内置音频一律优先，不受影响</div></div>
+      <button class="sw-tg${s.ttsFallback !== false ? ' on' : ''}" data-tg="ttsFallback" aria-label="缺音频时朗读"><i></i></button></div>
   </div>
 
   <div class="sec-title">外观</div>
