@@ -1,0 +1,14 @@
+# wrangler CLI 直传时忽略的文件（git 集成部署不需要这个文件）
+# 注意：_headers 千万不要写进来，Cloudflare 靠它设缓存策略
+.git
+.gitignore
+.gitattributes
+.wranglerignore
+_shot
+_verifytmp
+tools
+启动.bat
+serve.py
+DEPLOY.md
+data/audio_manifest.json
+data/audio_fixed_log.jsonl
