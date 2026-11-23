@@ -154,6 +154,10 @@ async function shot(cdp, name) {
     cdp = await CDP.connect(target.webSocketDebuggerUrl);
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
+    // 强制不走缓存：profile 是复用的，查线上地址时会拿到 max-age=600 的旧 CSS，
+    // 症状是「文件明明推上去了，断言还在按旧样式失败」。
+    await cdp.send('Network.enable');
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
 
     for (const v of VIEWS) {
       head(`== ${v.name}  ${v.w}×${v.h} ==`);
