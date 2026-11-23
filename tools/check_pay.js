@@ -60,8 +60,24 @@ const ok = (cond, label, extra) => {
 
   const onDisk = srcs.map(s => fs.existsSync(path.join(ROOT, s)));
   console.log('  磁盘上是否存在：', onDisk.map((v, i) => srcs[i].split('/').pop() + '=' + (v ? '有' : '无')).join(' '));
-  console.log('  ' + (onDisk.every(Boolean) ? '→ 收款码已就位，线上会直接显示'
-    : '→ 还没放图，线上会把空位藏起来（本地提示可见）'));
+  ok(onDisk.every(Boolean), '两张收款码图片都已就位');
+  const sizes = srcs.map(s => { try { return fs.statSync(path.join(ROOT, s)).size; } catch (e) { return 0; } });
+  console.log('  文件大小：', sizes.map((n, i) => srcs[i].split('/').pop() + '=' + Math.round(n / 1024) + 'KB').join(' '));
+  ok(sizes.every(n => n > 8000), '图片不是占位空文件（>8KB）');
+
+  // 结构：hero 有徽标和标题，两张卡各有一个品牌胶囊 + 桌面/手机两条提示
+  ok(!!doc.querySelector('.pay-hero .pay-kicker'), 'hero 有「赞赏支持」徽标');
+  ok((doc.querySelectorAll('.pay-box .pay-brand').length) === 2, '两张卡都有品牌色胶囊');
+  ok(doc.querySelectorAll('.pay-box .pay-hint.pc').length === 2
+    && doc.querySelectorAll('.pay-box .pay-hint.mob').length === 2, '桌面/手机两套提示都在');
+
+  // 首页与设置页都要有醒目的入口
+  await nav('home');
+  ok(!!doc.querySelector('#view .pay-cta[data-go="support"]'), '首页有赞赏入口');
+  await nav('settings');
+  ok(!!doc.querySelector('#view .pay-cta[data-go="support"]'), '设置页有赞赏入口');
+  await nav('support');
+  const b1 = [...doc.querySelectorAll('[data-pay]')];
 
   // 手动派发 error，验证降级：第一张挂掉时提示仍隐藏，两张都挂掉才提示
   const devNote = () => {
@@ -70,15 +86,16 @@ const ok = (cond, label, extra) => {
   };
   ok(devNote() === false, '初始不显示「缺图」提示');
 
-  boxes[0].querySelector('img').dispatchEvent(new win.Event('error'));
+  b1[0].querySelector('img').dispatchEvent(new win.Event('error'));
   await wait(30);
-  ok(boxes[0].style.display === 'none', '缺图的那个盒子被隐藏');
-  ok(boxes[1].style.display !== 'none', '另一张不受牵连');
+  ok(b1[0].style.display === 'none', '缺图的那个盒子被隐藏');
+  ok(b1[1].style.display !== 'none', '另一张不受牵连');
+  ok(doc.querySelector('.pay-grid').classList.contains('single'), '只剩一张时网格转单列居中');
   ok(devNote() === false, '只缺一张时仍不提示');
 
-  boxes[1].querySelector('img').dispatchEvent(new win.Event('error'));
+  b1[1].querySelector('img').dispatchEvent(new win.Event('error'));
   await wait(30);
-  ok(boxes[1].style.display === 'none', '第二张也被隐藏');
+  ok(b1[1].style.display === 'none', '第二张也被隐藏');
   ok(devNote() === true, '两张都缺时，本机显示「该放哪儿」提示');
 
   // 重新进页面，这次派发 load，验证正常路径不会被误藏

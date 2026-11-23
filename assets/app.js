@@ -16,6 +16,7 @@ const ICON = {
   chev: '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
   search: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  heart: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.8 5.1a5.4 5.4 0 00-7.7 0L12 6.2l-1.1-1.1a5.4 5.4 0 10-7.7 7.7l1.1 1.1L12 21.5l7.7-7.6 1.1-1.1a5.4 5.4 0 000-7.7z"/></svg>',
 };
 
 /* ==================== 工具 ==================== */
@@ -401,6 +402,12 @@ function viewHome() {
   <div class="sec-title">词典</div>
   <div class="card">
     <div class="row click" data-go="dict"><div class="r-main"><div class="r-title">查词</div><div class="r-sub">韩文 / 中文 · 变位表 · 例句</div></div>${ICON.chev}</div>
+  </div>
+
+  <div class="pay-cta click" data-go="support">
+    <span class="pay-cta-ico">${ICON.heart}</span>
+    <span class="pay-cta-txt"><b>赞赏支持</b><i>全部功能免费，想请我喝杯咖啡就点这里</i></span>
+    ${ICON.chev}
   </div>
   `;
 }
@@ -1528,7 +1535,13 @@ function viewSettings() {
 
   <div class="sec-title">关于</div>
   <div class="card">
-    <div class="row click" data-go="support"><div class="r-main"><div class="r-title">赞赏支持</div><div class="r-sub">全部功能免费，赞赏纯属自愿，不解锁任何东西</div></div>${ICON.chev}</div>
+    <div class="row"><div class="r-main"><div class="r-title">한글·学　v1.0</div><div class="r-sub">识别型韩语学习 · FSRS 记忆调度 · 完全本地运行</div></div><div class="r-val">免费</div></div>
+  </div>
+
+  <div class="pay-cta click" data-go="support">
+    <span class="pay-cta-ico">${ICON.heart}</span>
+    <span class="pay-cta-txt"><b>赞赏支持</b><i>全部功能免费，赞赏纯属自愿，不解锁任何东西</i></span>
+    ${ICON.chev}
   </div>
 
   <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:34px;line-height:1.9">
@@ -1545,19 +1558,25 @@ function viewSettings() {
 // 图片缺失时整块隐藏 —— 线上不给访客看到空框；只有本机（localhost / file://）
 // 才把「图该放哪儿」的提示露出来，方便自己调试。
 const PAY = [
-  { k: 'wechat', name: '微信', file: 'assets/pay/wechat.png', tip: '微信扫一扫，或长按识别' },
-  { k: 'alipay', name: '支付宝', file: 'assets/pay/alipay.png', tip: '支付宝扫一扫，或长按识别' },
+  { k: 'wechat', name: '微信', brand: '#07C160', file: 'assets/pay/wechat.png', tip: '微信扫一扫，或长按识别' },
+  { k: 'alipay', name: '支付宝', brand: '#1677FF', file: 'assets/pay/alipay.png', tip: '支付宝扫一扫，或长按识别' },
 ];
 
 function viewSupport() {
   const boxes = PAY.map(p => `
-    <div class="pay-box" data-pay="${p.k}">
-      <div class="pay-hd"><span class="pay-name">${p.name}</span><span class="pay-tip">${p.tip}</span></div>
-      <img class="pay-img" src="${p.file}" alt="${p.name}收款码">
+    <div class="pay-box" data-pay="${p.k}" style="--brand:${p.brand}">
+      <div class="pay-hd">
+        <span class="pay-brand">${p.name}</span>
+        <span class="pay-sub">${p.name}扫一扫</span>
+      </div>
+      <img class="pay-img" src="${p.file}" alt="${p.name}收款码" decoding="async">
+      <div class="pay-hint pc">用手机扫这个码</div>
+      <div class="pay-hint mob">长按二维码保存到相册<br>再打开「${p.name}」→ 扫一扫 → 相册</div>
     </div>`).join('');
 
   return `
   <div class="pay-hero">
+    <div class="pay-kicker">${ICON.heart} 赞赏支持</div>
     <div class="pay-t">谢谢你把韩语学下去</div>
     <div class="pay-s">这里的功能全部免费——没有会员、没有广告、没有「看广告解锁下一课」。
       音频、词库、语法都是本地文件，跑在你自己的设备上。<br>
@@ -1572,7 +1591,7 @@ function viewSupport() {
     建议：正方形 PNG，边长 600px 以上；微信「我 → 服务 → 收付款 → 赞赏码」可保存原图。
   </div>
 
-  <div class="pay-foot">钱不进服务器——这个页面没有后端，赞赏码只是一张静态图片。</div>`;
+  <div class="pay-foot">钱不进服务器——这个页面没有后端，收款码只是一张静态图片。</div>`;
 }
 
 /* ==================== 事件绑定 ==================== */
@@ -1581,9 +1600,12 @@ function bindView() {
   const payBoxes = [...document.querySelectorAll('[data-pay]')];
   if (payBoxes.length) {
     const local = /^(localhost|127\.0\.0\.1|\[::1\]|)$/.test(location.hostname);
+    const grid = document.querySelector('.pay-grid');
     let alive = payBoxes.length;
     const gone = () => {
-      if (--alive > 0) return;
+      // 只剩一张时让它居中占满，别挤在左边半列里
+      if (--alive === 1 && grid) grid.classList.add('single');
+      if (alive > 0) return;
       const n = document.querySelector('#pay-dev');
       if (n && local) n.hidden = false;
     };
