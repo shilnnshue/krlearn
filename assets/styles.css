@@ -18,6 +18,14 @@
   --shadow: 0 1px 2px rgba(25,25,23,.04), 0 8px 24px -12px rgba(25,25,23,.10);
   --shadow-lg: 0 2px 6px rgba(25,25,23,.05), 0 18px 44px -16px rgba(25,25,23,.16);
   --mono: "SF Mono", "Consolas", monospace;
+  /* 布局变量：整个响应式体系都靠这几个，改一处就整体跟着变 */
+  --shell-max: 700px;   /* 正文栏宽 */
+  --pad: 18px;          /* 左右留白 */
+  --top-h: 56px;        /* 顶栏高度（不含刘海安全区） */
+  --tab-h: 0px;         /* 底部导航占位，窄屏时由媒体查询改成 58px */
+  --shell-pb: 60px;     /* 正文底部留白，有底栏时换成「底栏高度 + 一点呼吸」 */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 [data-theme="dark"] {
   --bg: #131315;
@@ -49,6 +57,8 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
+/* 不加这行的话，iPhone 横竖屏切换、或输入框聚焦时，Safari 会把字号擅自放大 */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -57,19 +67,31 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   transition: background .25s ease, color .25s ease;
+  /* 横滑手势自己处理，别让浏览器做整页橡皮筋；纵向照常滚 */
+  overscroll-behavior-x: none;
 }
 .kr { font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
 button { font-family: inherit; font-size: inherit; cursor: pointer; border: none; background: none; color: inherit; }
 input { font-family: inherit; font-size: inherit; }
 
 /* ============ 外壳 ============ */
-#shell { max-width: 700px; margin: 0 auto; padding: 0 18px 60px; }
+#shell {
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: 0 var(--pad) var(--shell-pb);
+  /* 滑动跟手时内容会移出正文栏，clip 掉，别让整页出现横向滚动条。
+     用 clip 而不是 hidden：hidden 会把 #shell 变成滚动容器，顶栏的 sticky 就失效了。 */
+  overflow-x: clip;
+}
 #topbar {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: 10px;
-  height: 56px; margin: 0 -18px; padding: 0 14px;
+  height: calc(var(--top-h) + var(--safe-t));
+  padding: var(--safe-t) calc(var(--pad) - 4px) 0;
+  margin: 0 calc(-1 * var(--pad));
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
   border-bottom: 1px solid transparent;
   transition: border-color .2s;
 }
@@ -196,8 +218,16 @@ input { font-family: inherit; font-size: inherit; }
 .quick .btn { padding: 0 6px; font-size: 13.5px; letter-spacing: 0; }
 
 /* ============ 学习卡片 ============ */
-#study-wrap { position: fixed; inset: 0; background: var(--bg); z-index: 50; display: flex; flex-direction: column; overflow: hidden; }
-.study-top { display: flex; align-items: center; gap: 10px; padding: 14px 18px; }
+/* 用 dvh —— 移动端地址栏收起/展开时，100vh 会把底部按钮顶到屏幕外 */
+#study-wrap {
+  position: fixed; inset: 0; height: 100vh; height: 100dvh;
+  background: var(--bg); z-index: 50;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.study-top {
+  display: flex; align-items: center; gap: 10px;
+  padding: calc(14px + var(--safe-t)) var(--pad) 12px;
+}
 .study-top .prog { flex: 1; }
 .study-top .tb-btn {
   width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
@@ -218,7 +248,7 @@ input { font-family: inherit; font-size: inherit; }
 .study-body {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 10px 22px 24px; display: flex; flex-direction: column;
+  padding: 10px 22px calc(24px + var(--safe-b)); display: flex; flex-direction: column;
 }
 /* safe center：内容放得下时居中，放不下时退回从顶部排，不会把上半截顶出可滚区域 */
 .study-body.center { justify-content: center; justify-content: safe center; }
@@ -406,22 +436,6 @@ input { font-family: inherit; font-size: inherit; }
 
 /* ============ 拖拽排序提示 ============ */
 .drag-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
-
-/* ============ 响应式 ============ */
-@media (max-width: 560px) {
-  #shell { padding: 0 14px 60px; }
-  #topbar { margin: 0 -14px; padding: 0 10px; }
-  .stat2 { gap: 10px; }
-  .stat2 .s { padding: 15px 13px; }
-  .stat2 .s .n { font-size: 25px; }
-  .study-body { padding: 6px 16px 20px; }
-  .flashboard .word { font-size: 44px; }
-  .letter-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 7px; }
-  .letter-cell .ch { font-size: 26px; }
-}
-@media (min-width: 900px) {
-  #shell { max-width: 760px; }
-}
 
 /* ============ 折叠区 ============ */
 .collapse { overflow: hidden; padding: 0; }
@@ -658,4 +672,192 @@ input { font-family: inherit; font-size: inherit; }
   .pay-hint.mob { display: block; }
   .pay-cta { padding: 12px 14px; }
   .pay-cta-txt i { font-size: 11px; }
+}
+
+/* ============ 底部导航（手机 / 平板竖屏） ============ */
+#tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  /* 必须低于学习页（z-index 50）：背词是全屏浮层，底栏要让它盖住，
+     否则「翻面看释义」这种底部按钮会被导航条压掉半截。 */
+  z-index: 40;
+  display: none;
+  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  border-top: 1px solid var(--line);
+  padding-bottom: var(--safe-b);
+}
+#tabbar .tb-item {
+  flex: 1 1 0; min-width: 0; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  height: 58px; padding: 0 2px;
+  color: var(--muted); font-size: 10.5px; letter-spacing: .01em;
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#tabbar .tb-item svg { width: 21px; height: 21px; display: block; }
+#tabbar .tb-item.on { color: var(--accent); }
+#tabbar .tb-item.on::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 26px; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent);
+}
+#tabbar .tb-item:active { background: var(--line-2); }
+@media (max-width: 900px) {
+  #tabbar { display: flex; }
+}
+
+/* iOS 聚焦输入框会把整页放大 —— 字号必须 >= 16。
+   按「手指设备」判断而不是按宽度：iPad 横屏 1024 一样是触屏，一样会被放大。
+   这条还得压过 .g-search 的基础规则（14.5px），所以必须在文件末尾。 */
+@media (pointer: coarse) {
+  .g-search, .search-bar input { font-size: 16px; }
+}
+
+/* ============ 左右滑动转场 ============ */
+/* 跟手阶段直接写 transform（JS 逐帧更新），松手后靠这两个 class 把新页面滑进来 */
+#view { transform: translateX(0); }
+#view.sl-next { animation: slNext .26s cubic-bezier(.22,.7,.3,1); }
+#view.sl-prev { animation: slPrev .26s cubic-bezier(.22,.7,.3,1); }
+@keyframes slNext {
+  from { opacity: .3; transform: translateX(30px); }
+  to   { opacity: 1;  transform: translateX(0); }
+}
+@keyframes slPrev {
+  from { opacity: .3; transform: translateX(-30px); }
+  to   { opacity: 1;  transform: translateX(0); }
+}
+/* 学习页卡片跟手 + 左右动作提示 */
+.flashcard.swipeable { touch-action: pan-y; }
+.study-swipetip {
+  text-align: center; font-size: 11.5px; color: var(--muted);
+  letter-spacing: .06em; padding: 0 0 8px; opacity: .75;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view.sl-next, #view.sl-prev { animation: none; }
+  .flashcard { animation: none; }
+}
+
+/* ============ 响应式（统一放文件末尾） ============ */
+/* 媒体查询必须排在所有基础规则之后，否则同特异性的基础规则会把它盖回去 */
+/* ============ 响应式：一套变量打天下 ============
+   宽度断点
+     0 – 380     小手机（iPhone SE / 旧安卓）
+     381 – 560   常规手机
+     561 – 699   大手机横屏 / 小平板
+     700 – 1023  iPad 竖屏、安卓平板
+     1024 +      iPad 横屏 / 桌面
+   能力断点
+     pointer: coarse  手指操作 —— 触控目标放大、去掉 hover 抬升
+     hover: none      iOS 上 :hover 会「粘住」，必须单独关掉
+=============================================== */
+@media (max-width: 900px) {
+  /* 底栏占了位置，正文留白换成「底栏 + 30px」，避免滚到底是一大片空 */
+  :root { --tab-h: 58px; --shell-pb: calc(30px + var(--tab-h) + var(--safe-b)); }
+}
+
+@media (max-width: 560px) {
+  :root { --pad: 14px; --top-h: 54px; }
+  .stat2 { gap: 10px; }
+  .stat2 .s { padding: 15px 13px; }
+  .stat2 .s .n { font-size: 25px; }
+  .study-body { padding: 6px 16px 20px; }
+  .letter-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 7px; }
+  .letter-cell .ch { font-size: 26px; }
+  /* iOS 上输入框字号 < 16px 会在聚焦时把整页放大，这里必须顶到 16 */
+  .g-search, .search-bar input { font-size: 16px; }
+}
+
+@media (max-width: 380px) {
+  :root { --pad: 12px; }
+  .quick { grid-template-columns: 1fr 1fr; }
+  .quick .btn:last-child { grid-column: 1 / -1; }
+  .stat2 .s .n { font-size: 23px; }
+  .g-form { font-size: 16px; }
+}
+
+/* 平板：正文变宽，列表和字母墙跟着多排 —— 不是把手机版拉大 */
+@media (min-width: 700px) {
+  :root { --shell-max: 780px; --pad: 26px; }
+  .letter-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; }
+  .g-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .g-item { display: flex; flex-direction: column; justify-content: center; }
+  .stat2 { gap: 14px; }
+  .stat2 .s { padding: 20px 18px; }
+  /* 学习页在宽屏上别让卡片散成一片 */
+  #study-wrap .study-top, #study-wrap .study-body { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
+  /* 底部按钮 760 宽在 iPad 上像条横幅，收一点 */
+  #study-wrap .study-actions { width: 100%; max-width: 560px; margin-left: auto; margin-right: auto; }
+  .match-grid { max-width: 620px; margin: 0 auto; }
+  .opts { max-width: 620px; margin: 0 auto; width: 100%; }
+}
+
+@media (min-width: 1024px) {
+  :root { --shell-max: 860px; --pad: 30px; }
+  .letter-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+}
+
+/* 手指操作：目标尺寸至少 40px，iOS 上 44 才不误触 */
+@media (pointer: coarse) {
+  /* 必须带 #topbar 前缀：#topbar .tb-btn 的特异性是 (1,1,0)，光写 .tb-btn 压不住 */
+  #topbar .tb-btn, .study-top .tb-btn { width: 42px; height: 42px; }
+  .btn { height: 48px; }
+  .row { padding: 16px var(--pad); }
+  .chip { min-height: 36px; padding: 8px 14px; }
+  .opt { padding: 16px; }
+  .mode-chip { height: 30px; }
+  .sw-tg { width: 50px; height: 30px; }
+  .sw-tg i { width: 24px; height: 24px; }
+  .sw-tg.on i { transform: translateX(20px); }
+  .g-item { padding: 15px 16px; }
+}
+
+/* 触屏没有「悬停」，这些位移/阴影会留在元素上，看着像卡住了 */
+@media (hover: none) {
+  .opt:hover:not(.locked) { border-color: var(--line); }
+  .g-item:hover { border-color: var(--line); }
+  .row.click:hover { background: transparent; }
+  .spk:hover { transform: none; }
+  .letter-cell:hover { transform: none; box-shadow: none; border-color: var(--line); }
+  .stat2 .s:hover { transform: none; box-shadow: var(--shadow); }
+  .pay-cta:hover { border-color: var(--line); }
+  .chip:hover { border-color: var(--line); }
+  .syl-table td:hover { background: var(--surface); border-color: var(--line); }
+  .ex-item:hover { background: transparent; }
+  .collapse-hd:hover { background: transparent; }
+  .sent-box:hover { border-color: var(--line); }
+  .btn-ghost:hover { background: var(--surface); }
+  .btn-primary:hover { opacity: 1; }
+}
+
+/* 手机横屏：竖向空间最紧张，学习页压缩行高、缩小题干 */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --top-h: 46px; }
+  .study-top { padding: 6px var(--pad); }
+  .flashcard { min-height: 0; padding: 6px 0; }
+  .flashcard .word { font-size: clamp(28px, 7.5vh, 46px); }
+  .flashcard .meaning { font-size: 18px; margin-top: 10px; }
+  .flashcard .tap-hint { margin-top: 14px; }
+  .q-stem { padding: 8px 0 12px; }
+  .q-stem .big { font-size: clamp(24px, 7vh, 38px); }
+  .study-actions.g4 .btn, .study-actions .btn { height: 44px; }
+  .pay-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* 平板竖屏：768px 宽拉一条通栏底栏太散，收成居中的悬浮胶囊 */
+@media (min-width: 640px) and (max-width: 900px) {
+  :root { --shell-pb: calc(88px + var(--safe-b)); }
+  #tabbar {
+    left: 50%; right: auto;
+    transform: translateX(-50%);
+    bottom: calc(12px + var(--safe-b));
+    width: min(520px, calc(100% - 44px));
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding-bottom: 0;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+  #tabbar .tb-item { height: 54px; }
 }

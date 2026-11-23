@@ -23,6 +23,28 @@
   <main id="view"></main>
 </div>
 <div id="study-wrap" style="display:none"></div>
+<nav id="tabbar" aria-label="主导航">
+  <button class="tb-item" data-tab="home" aria-label="首页">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.2V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.2"/><path d="M9.8 21v-6h4.4v6"/></svg>
+    <span>首页</span>
+  </button>
+  <button class="tb-item" data-tab="alpha" aria-label="字母">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19 9.6 5l5.1 14"/><path d="M6.6 14.4h6"/><path d="M17.8 19h1.7"/></svg>
+    <span>字母</span>
+  </button>
+  <button class="tb-item" data-tab="dict" aria-label="词典">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 5.5V20.5"/><path d="M8.5 7.5h6"/></svg>
+    <span>词典</span>
+  </button>
+  <button class="tb-item" data-tab="grammar" aria-label="语法">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5c-2 0-2.8 1-2.8 2.8v3c0 1.2-.7 1.9-1.7 1.9v1.6c1 0 1.7.7 1.7 1.9v3c0 1.8.8 2.8 2.8 2.8"/><path d="M14.5 3.5c2 0 2.8 1 2.8 2.8v3c0 1.2.7 1.9 1.7 1.9v1.6c-1 0-1.7.7-1.7 1.9v3c0 1.8-.8 2.8-2.8 2.8"/></svg>
+    <span>语法</span>
+  </button>
+  <button class="tb-item" data-tab="settings" aria-label="设置">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M18 7h2M4 17h4M13 17h7"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="10.5" cy="17" r="2.3"/></svg>
+    <span>设置</span>
+  </button>
+</nav>
 <div id="toast"></div>
 
 <script>window.__errs=[];window.addEventListener('error',function(e){window.__errs.push(String(e.message)+' @'+e.filename+':'+e.lineno)});window.addEventListener('unhandledrejection',function(e){window.__errs.push('promise: '+String(e.reason))});</script>

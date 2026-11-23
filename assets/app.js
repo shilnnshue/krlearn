@@ -314,13 +314,15 @@ function statePill(w) {
 
 /* ==================== 路由 ==================== */
 let route = { name: 'home', arg: null };
+let slideDir = 0;              // 1 = 新页从右边进（前进）；-1 = 从左边进（返回）；0 = 不做动画
 const TITLES = {
   home: '한글·学', alpha: '字母与发音', dict: '词典', stats: '学习统计',
   settings: '设置', list: '列表', entry: '词条', note: '我的笔记', sent: '收藏句子', deck: '切换词本',
   grammar: '语法', support: '赞赏'
 };
-function go(name, arg, push) {
+function go(name, arg, push, dir) {
   route = { name, arg: arg || null };
+  slideDir = dir || 0;
   if (push !== false) { try { history.pushState(route, '', '#' + name + (arg ? '/' + encodeURIComponent(arg) : '')); } catch (e) {} }
   render();
   $('#view').parentElement.scrollTop = 0;
@@ -328,8 +330,8 @@ function go(name, arg, push) {
   document.documentElement.scrollTop = 0;
 }
 window.addEventListener('popstate', e => {
-  if (e.state && e.state.name) { route = e.state; render(); }
-  else { route = { name: 'home' }; render(); }
+  if (e.state && e.state.name) { route = e.state; slideDir = -1; render(); }
+  else { route = { name: 'home' }; slideDir = -1; render(); }
 });
 window.addEventListener('hashchange', () => {
   const h = (location.hash || '').replace(/^#/, '');
@@ -339,14 +341,18 @@ window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);
 });
-$('#btn-back').addEventListener('click', () => {
-  if (route.name === 'home') return;
-  if (route.name === 'entry') return go('dict');
-  if (route.name === 'grammar' && route.arg) return go('grammar');
-  if (route.name === 'support') return go('settings');
-  if (route.name === 'note' || route.name === 'sent' || route.name === 'deck') return go('settings');
-  go('home');
-});
+// 返回上一级。向右滑和顶栏返回键共用这一套，别写两份逻辑。
+function doBack(dir) {
+  const n = route.name;
+  if (n === 'home') return;
+  if (n === 'entry') return go('dict', null, true, dir);
+  if (n === 'dict' && route.arg) return go('dict', null, true, dir);
+  if (n === 'grammar' && route.arg) return go('grammar', null, true, dir);
+  if (n === 'support') return go('settings', null, true, dir);
+  if (n === 'note' || n === 'sent' || n === 'deck') return go('settings', null, true, dir);
+  go('home', null, true, dir);
+}
+$('#btn-back').addEventListener('click', () => doBack(-1));
 $('#btn-theme').addEventListener('click', () => {
   const order = ['auto', 'light', 'dark'];
   const i = order.indexOf(DB.settings.theme);
@@ -390,7 +396,21 @@ function render() {
     default: v.innerHTML = viewHome();
   }
   $('#tb-title').textContent = TITLES[route.name] || '한글·学';
+  syncTabbar();
   bindView();
+
+  // 转场：先把跟手时残留的内联 transform 清掉，再加一次性动画 class
+  v.style.transform = '';
+  v.style.opacity = '';
+  v.style.transition = '';
+  if (slideDir) {
+    const cls = slideDir > 0 ? 'sl-next' : 'sl-prev';
+    v.classList.remove('sl-next', 'sl-prev');
+    void v.offsetWidth;             // 强制回流，否则同一个 class 连加两次不会重播
+    v.classList.add(cls);
+    setTimeout(() => v.classList.remove(cls), 320);
+    slideDir = 0;
+  }
 }
 
 /* ==================== 首页 ==================== */
@@ -646,7 +666,7 @@ function renderStudy() {
       <div class="study-body center">
         <div class="flashcard" data-flip="1" data-say="${esc(URLS.word(w.id))}" data-saytext="${esc(w.korean)}" data-copy="${esc(w.korean)}">
           <div class="word kr">${esc(w.korean)}</div>
-          <div class="tap-hint">轻点翻面　·　双击听发音　·　长按复制</div>
+          <div class="tap-hint">轻点翻面　·　双击听发音　·　长按复制${HAS_TOUCH ? '<br><span style="opacity:.8">左滑不认识　·　右滑看释义</span>' : ''}</div>
         </div>
         ${pure ? `<div class="study-actions">
           <button class="btn btn-primary btn-block" data-act="flip">翻面看释义</button>
@@ -694,6 +714,7 @@ function renderStudy() {
           <div class="meaning" style="margin-top:22px">${esc(w.chinese)}</div>
           <div class="pos"><span class="pill">${esc(w.pos)}</span></div>
         </div>
+        ${HAS_TOUCH ? '<div class="study-swipetip">左滑不认识　·　右滑认识</div>' : ''}
         <div class="study-actions g2">
           <button class="btn btn-ghost" data-act="unknown">不认识</button>
           <button class="btn btn-primary" data-act="known-fast">认识</button>
@@ -1890,6 +1911,206 @@ function doImport(file) {
   };
   r.readAsText(file, 'utf-8');
 }
+
+/* ==================== 设备适配：底部导航 + 左右滑动 ====================
+   两条独立的手势通道：
+     浏览页  —— 主栏目之间左右滑切换；子页右滑回上一级（等同返回键）
+     学习页  —— 卡片随手指轻微跟手，左滑=左边那个按钮，右滑=右边那个按钮
+   答题阶段一律不接管手势：滑一下误选个选项，代价太大。
+============================================================ */
+const TAB_SEQ = ['home', 'alpha', 'dict', 'grammar', 'settings'];
+const HAS_TOUCH = (() => {
+  try { return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window; }
+  catch (e) { return false; }
+})();
+
+// 子页跟父栏目同亮：entry → dict，list/note/sent/deck/stats/support → settings
+function tabOf(name) {
+  if (name === 'dict' || name === 'entry') return 'dict';
+  if (name === 'grammar') return 'grammar';
+  if (name === 'home') return 'home';
+  if (name === 'alpha') return 'alpha';
+  return 'settings';
+}
+function syncTabbar() {
+  const bar = $('#tabbar'); if (!bar) return;
+  const cur = tabOf(route.name);
+  bar.querySelectorAll('.tb-item').forEach(b => {
+    const on = b.dataset.tab === cur;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+}
+document.querySelectorAll('#tabbar .tb-item').forEach(b => {
+  b.addEventListener('click', () => {
+    const t = b.dataset.tab;
+    if (tabOf(route.name) === t) {
+      // 已经在同区：子页回顶层，顶层就滚回页面顶部（App 里的通行做法）
+      if (route.arg || route.name !== t) go(t);
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const dir = TAB_SEQ.indexOf(t) > TAB_SEQ.indexOf(tabOf(route.name)) ? 1 : -1;
+    go(t, null, true, dir);
+  });
+});
+
+const SW_LOCK = 12;      // 超过这个位移才判定方向
+const SW_DIST = 58;      // 松手时超过这个距离就翻页
+const SW_VEL = 0.45;     // 或者距离够短但速度够快（px/ms）
+let G = null;            // 当前手势
+let swallowClick = 0, swallowUntil = 0;
+
+function swipeTargetOf(dir) {   // dir: 1 = 手指向右（回上一屏），-1 = 手指向左（去下一屏）
+  const onTab = TAB_SEQ.indexOf(route.name) >= 0 && !route.arg;
+  if (onTab) {
+    const j = TAB_SEQ.indexOf(route.name) + (dir > 0 ? -1 : 1);
+    return (j >= 0 && j < TAB_SEQ.length) ? { kind: 'tab', name: TAB_SEQ[j] } : null;
+  }
+  return dir > 0 ? { kind: 'back' } : null;
+}
+
+function studySwipeActs() {
+  if (!Ses.on) return null;
+  const box = $('#study-wrap');
+  const un = box.querySelector('[data-act="unknown"]');
+  const L = un ? () => un.click() : null;
+  if (Ses.phase === 'front') {
+    const fl = box.querySelector('[data-act="flip"]');
+    return fl ? { l: L, r: () => fl.click() } : null;
+  }
+  if (Ses.phase === 'back') {
+    const kn = box.querySelector('[data-act="known"]');
+    return kn ? { l: L, r: () => kn.click() } : null;
+  }
+  if (Ses.phase === 'quick') {
+    const kn = box.querySelector('[data-act="known-fast"]');
+    return kn ? { l: L, r: () => kn.click() } : null;
+  }
+  return null;
+}
+
+// 起点落在这些地方就别接管：表单、横向滚动区
+function swipeIgnored(t) {
+  if (!t || !t.closest) return true;
+  if (t.closest('input, textarea, select, [contenteditable="true"]')) return true;
+  if (t.closest('.g-filters, .syl-table, .tabs, .chips, .match-grid')) return true;
+  for (let n = t; n && n !== document.body; n = n.parentElement) {
+    if (n.scrollWidth > n.clientWidth + 8) {
+      const ox = getComputedStyle(n).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+  }
+  return false;
+}
+
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) { G = null; return; }
+  const t = e.target, p = e.touches[0];
+  const study = !!t.closest('#study-wrap');
+  const acts = study ? studySwipeActs() : null;
+  if (study && !acts) { G = null; return; }
+  if (!study && swipeIgnored(t)) { G = null; return; }
+  G = {
+    x: p.clientX, y: p.clientY, t0: Date.now(), dx: 0, dy: 0, axis: '',
+    study, acts, target: null, moved: false,
+    card: study ? t.closest('.flashcard') : null,
+    view: study ? null : $('#view')
+  };
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!G) return;
+  const p = e.touches[0]; if (!p) return;
+  const dx = p.clientX - G.x, dy = p.clientY - G.y;
+  if (!G.axis) {
+    if (Math.abs(dx) < SW_LOCK && Math.abs(dy) < SW_LOCK) return;
+    G.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x' : 'y';
+    if (G.axis === 'y') { G = null; return; }        // 竖向：还给页面滚动
+  }
+  G.dx = dx; G.dy = dy;
+  if (!G.target) {
+    G.target = G.study ? { kind: 'study' } : swipeTargetOf(dx > 0 ? 1 : -1);
+    if (!G.target) { G = null; return; }             // 无处可去，不抢手势
+  }
+  if (e.cancelable) e.preventDefault();
+  G.moved = true;
+
+  if (G.study) {
+    if (G.card) {
+      // 长按复制是 560ms 计时器，手指一横移就得取消，否则复制提示会盖住卡片
+      G.card.dispatchEvent(new Event('pointerleave'));
+      const damp = Math.max(-1, Math.min(1, dx / 200));
+      G.card.style.transition = 'none';
+      G.card.style.transform = 'translateX(' + (dx * 0.24) + 'px) rotate(' + (damp * 1.8) + 'deg)';
+    }
+    return;
+  }
+  if (G.view) {
+    G.view.style.transform = 'translateX(' + (dx * 0.36) + 'px)';
+    G.view.style.opacity = String(1 - Math.min(0.45, Math.abs(dx) / 760));
+  }
+}, { passive: false });
+
+function swipeReset(el) {
+  if (!el) return;
+  el.style.transition = 'transform .22s cubic-bezier(.22,.7,.3,1), opacity .22s ease';
+  el.style.transform = '';
+  el.style.opacity = '';
+  setTimeout(() => { el.style.transition = ''; }, 240);
+}
+
+document.addEventListener('touchend', () => {
+  const g = G; G = null;
+  if (!g || g.axis !== 'x') return;
+  const dt = Math.max(1, Date.now() - g.t0);
+  const dx = g.dx;
+  const far = Math.abs(dx) > SW_DIST || (Math.abs(dx) > 26 && Math.abs(dx) / dt > SW_VEL);
+  if (g.moved) { swallowClick = 1; swallowUntil = Date.now() + 400; }
+
+  if (g.study) {
+    if (g.card) swipeReset(g.card);
+    if (!far || !g.acts) return;
+    const act = dx < 0 ? g.acts.l : g.acts.r;
+    if (act) setTimeout(act, 60);      // 等卡片归位一下再切，不然动作和回弹打架
+    return;
+  }
+
+  if (far && g.target) {
+    const v = $('#view');
+    const out = (dx > 0 ? 1 : -1) * Math.min(window.innerWidth * 0.55, 320);
+    if (v) {
+      v.style.transition = 'transform .16s ease, opacity .16s ease';
+      v.style.transform = 'translateX(' + out + 'px)';
+      v.style.opacity = '0';
+    }
+    setTimeout(() => {
+      if (g.target.kind === 'tab') go(g.target.name, null, true, dx > 0 ? -1 : 1);
+      else doBack(dx > 0 ? -1 : 1);
+    }, 120);
+  } else if (g.view) {
+    swipeReset(g.view);
+  }
+});
+
+document.addEventListener('touchcancel', () => {
+  const g = G; G = null;
+  if (!g) return;
+  swipeReset(g.view);
+  swipeReset(g.card);
+}, { passive: true });
+
+// 滑动结束后浏览器还会补发一个 click（落到刚落位的元素上）。这一个必须吃掉。
+// 但程序自己 element.click() 派发的是 untrusted —— 学习页滑动的动作就是靠它触发的，
+// 不能一起吞掉，否则右滑等于什么都没做。
+document.addEventListener('click', e => {
+  if (!e.isTrusted) return;
+  if (swallowClick > 0 && Date.now() < swallowUntil) {
+    swallowClick = 0;
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}, true);
 
 /* ==================== 启动 ==================== */
 async function boot() {

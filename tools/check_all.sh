@@ -27,14 +27,14 @@ run_node() {   # $1=脚本  $2=回显行数
   [ "$rc" = "0" ] || FAIL=1
 }
 
-line "== 1/6 数据自检（结构 + 音频文件 + 指纹 + 语法）=="
+line "== 1/7 数据自检（结构 + 音频文件 + 指纹 + 语法）=="
 if "$PY" tools/check_data.py; then :; else FAIL=1; fi
 
 SERVED=0
 # 注意：Windows 版 curl 写 /dev/null 会报 rc=23（Write error），必须让 shell 重定向
 if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then SERVED=1; fi
 
-line "== 2/6 视图回归（node + jsdom，不依赖浏览器）=="
+line "== 2/7 视图回归（node + jsdom，不依赖浏览器）=="
 if [ "$SERVED" = "1" ]; then
   run_node tools/jsdom_check.js "$BASE" 30
 else
@@ -43,17 +43,27 @@ else
   FAIL=1
 fi
 
-line "== 3/6 语法栏目交互（筛选 / 搜索 / 详情 / 音频 / 返回保持状态）=="
+line "== 3/7 语法栏目交互（筛选 / 搜索 / 详情 / 音频 / 返回保持状态）=="
 if [ "$SERVED" = "1" ]; then run_node tools/check_grammar.js 14; else echo "跳过（服务未启动）"; FAIL=1; fi
 
-line "== 4/6 赞赏页（收款码缺失时的降级）=="
+line "== 4/7 赞赏页（收款码缺失时的降级）=="
 if [ "$SERVED" = "1" ]; then run_node tools/check_pay.js 12; else echo "跳过（服务未启动）"; FAIL=1; fi
 
-line "== 5/6 朗读兜底（缺音频才念 / 被拦不念 / 关掉不念 / 有音频不念）=="
+line "== 5/7 朗读兜底（缺音频才念 / 被拦不念 / 关掉不念 / 有音频不念）=="
 if [ "$SERVED" = "1" ]; then run_node tools/check_tts.js 26; else echo "跳过（服务未启动）"; FAIL=1; fi
 
+line "== 6/7 多设备布局（手机 / iPad / 桌面 · 触控目标 · 左右滑动）=="
+# 这一段自己 spawn 无头 Chrome，不依赖已开的浏览器；截图落在 shots/resp-*.png
+if [ "$SERVED" = "1" ]; then
+  out=$("$NODE" tools/check_layout.js 2>&1); rc=$?
+  printf '%s\n' "$out" | grep -E '✗|LAYOUT' || printf '%s\n' "$out" | tail -4
+  [ "$rc" = "0" ] || FAIL=1
+else
+  echo "跳过（服务未启动）"; FAIL=1
+fi
+
 if [ "$QUICK" = "0" ]; then
-  line "== 6/6 音频体检（只报告，不修）=="
+  line "== 7/7 音频体检（只报告，不修）=="
   # --stale 按 mtime 找「数据改过、音频没跟上」的条目；数量为 0 就是全齐
   out=$(KR_CONC=8 "$PY" tools/audit_audio.py --stale --dry 2>&1); rc=$?
   printf '%s\n' "$out" | tail -6
