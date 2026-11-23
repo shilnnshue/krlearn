@@ -1,0 +1,7 @@
+# 强制所有文件按原样存取，禁止 git 做任何换行转换。
+#
+# 原因：启动.bat 是 GBK 编码 + CRLF 换行，Windows cmd 才能正确解析。
+# 如果 git 在 checkout 时把 CRLF 改成 LF（core.autocrlf 的默认行为），
+# 这个 bat 会直接坏掉 —— 之前就是踩的这个坑。
+# 这也是 16,018 个 mp3 不被误判成文本、不被损坏的保险。
+* -text

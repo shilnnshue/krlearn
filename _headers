@@ -1,0 +1,29 @@
+# Cloudflare Pages 响应头配置
+# 文件名就叫 _headers，放在站点根目录。GitHub Pages 不认这个文件（无害，会被当普通文件忽略）。
+# 规则按顺序匹配、同名头后写覆盖前写，所以宽泛的 /* 放最前面。
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# 页面本身必须每次验证，否则改了代码用户还看老版本
+/index.html
+  Cache-Control: no-cache
+
+# 业务代码同理
+/assets/*
+  Cache-Control: no-cache
+
+# 词库 / 变位表 / 字母表：内容会随更新变化，走条件请求（304 很便宜）
+/data/*
+  Cache-Control: no-cache
+
+# 音频是大头（288MB），长缓存能省掉绝大部分重复下载。
+# 但不给 immutable —— 音频文件名用的是词条 id，万一将来重排 id，
+# 同名文件会变成另一条音频，缓存太久会让用户听错。1 天 + 7 天后台刷新是折中。
+/audio/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# 第三方库按版本不变，可以放长
+/vendor/*
+  Cache-Control: public, max-age=2592000

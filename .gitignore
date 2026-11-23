@@ -1,0 +1,28 @@
+# ---- 验证 / 截图临时产物（本机 Chrome 已不可用，留着也没用）----
+/_shot/
+/_verifytmp/
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- CDP 截图流程的中间步骤文件 ----
+tools/_steps_*.json
+tools/_run*.sh
+tools/_runbat.js
+tools/_e2e.sh
+tools/_run_shots.sh
+tools/js/
+
+# ---- 一次性迁移日志（40K，只反映历史那次修复，没有业务价值）----
+data/audio_fixed_log.jsonl
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 本地环境 ----
+.workbuddy/
+node_modules/
+.wrangler/

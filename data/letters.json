@@ -1,0 +1,410 @@
+{
+ "consonants": [
+  {
+   "char": "ㄱ",
+   "roman": "g/k",
+   "name": "기역",
+   "hint": "介于 g 与 k 之间，词首偏 k，词中偏 g",
+   "index": 0
+  },
+  {
+   "char": "ㄲ",
+   "roman": "kk",
+   "name": "쌍기역",
+   "hint": "紧音，喉部收紧后爆发，比 ㄱ 更用力",
+   "index": 1
+  },
+  {
+   "char": "ㄴ",
+   "roman": "n",
+   "name": "니은",
+   "hint": "同汉语拼音 n",
+   "index": 2
+  },
+  {
+   "char": "ㄷ",
+   "roman": "d/t",
+   "name": "디귿",
+   "hint": "词首偏 t，词中偏 d，舌尖抵上齿龈",
+   "index": 3
+  },
+  {
+   "char": "ㄸ",
+   "roman": "tt",
+   "name": "쌍디귿",
+   "hint": "紧音 d，短促有力",
+   "index": 4
+  },
+  {
+   "char": "ㄹ",
+   "roman": "r/l",
+   "name": "리을",
+   "hint": "元音前近 r（弹舌一下），收音时近 l",
+   "index": 5
+  },
+  {
+   "char": "ㅁ",
+   "roman": "m",
+   "name": "미음",
+   "hint": "同汉语拼音 m",
+   "index": 6
+  },
+  {
+   "char": "ㅂ",
+   "roman": "b/p",
+   "name": "비읍",
+   "hint": "词首偏 p，词中偏 b",
+   "index": 7
+  },
+  {
+   "char": "ㅃ",
+   "roman": "pp",
+   "name": "쌍비읍",
+   "hint": "紧音 b，双唇紧闭后爆发",
+   "index": 8
+  },
+  {
+   "char": "ㅅ",
+   "roman": "s",
+   "name": "시옷",
+   "hint": "同汉语拼音 s；遇 ㅣ/ㅑ 等前元音时近 x",
+   "index": 9
+  },
+  {
+   "char": "ㅆ",
+   "roman": "ss",
+   "name": "쌍시옷",
+   "hint": "紧音 s，摩擦更强",
+   "index": 10
+  },
+  {
+   "char": "ㅇ",
+   "roman": "—/ng",
+   "name": "이응",
+   "hint": "在初声位置不发音（占位）；在收音位置发 ng",
+   "index": 11
+  },
+  {
+   "char": "ㅈ",
+   "roman": "j",
+   "name": "지읒",
+   "hint": "近汉语拼音 z/j 之间",
+   "index": 12
+  },
+  {
+   "char": "ㅉ",
+   "roman": "jj",
+   "name": "쌍지읒",
+   "hint": "紧音 j",
+   "index": 13
+  },
+  {
+   "char": "ㅊ",
+   "roman": "ch",
+   "name": "치읓",
+   "hint": "近汉语拼音 c/ch，带送气",
+   "index": 14
+  },
+  {
+   "char": "ㅋ",
+   "roman": "k",
+   "name": "키읔",
+   "hint": "送气 k，气流强",
+   "index": 15
+  },
+  {
+   "char": "ㅌ",
+   "roman": "t",
+   "name": "티읕",
+   "hint": "送气 t",
+   "index": 16
+  },
+  {
+   "char": "ㅍ",
+   "roman": "p",
+   "name": "피읖",
+   "hint": "送气 p",
+   "index": 17
+  },
+  {
+   "char": "ㅎ",
+   "roman": "h",
+   "name": "히읗",
+   "hint": "同汉语拼音 h",
+   "index": 18
+  }
+ ],
+ "vowels": [
+  {
+   "char": "ㅏ",
+   "roman": "a",
+   "name": "아",
+   "hint": "张口扁平，近汉语 a",
+   "index": 0
+  },
+  {
+   "char": "ㅐ",
+   "roman": "ae",
+   "name": "애",
+   "hint": "张口比 ㅔ 大，现代韩语与 ㅔ 几乎同音",
+   "index": 1
+  },
+  {
+   "char": "ㅑ",
+   "roman": "ya",
+   "name": "야",
+   "hint": "ㅏ 前加 y",
+   "index": 2
+  },
+  {
+   "char": "ㅒ",
+   "roman": "yae",
+   "name": "얘",
+   "hint": "ㅐ 前加 y",
+   "index": 3
+  },
+  {
+   "char": "ㅓ",
+   "roman": "eo",
+   "name": "어",
+   "hint": "舌后缩、口半开，近英语 cup 的 u",
+   "index": 4
+  },
+  {
+   "char": "ㅔ",
+   "roman": "e",
+   "name": "에",
+   "hint": "口型比 ㅐ 小，近汉语 ê",
+   "index": 5
+  },
+  {
+   "char": "ㅕ",
+   "roman": "yeo",
+   "name": "여",
+   "hint": "ㅓ 前加 y",
+   "index": 6
+  },
+  {
+   "char": "ㅖ",
+   "roman": "ye",
+   "name": "예",
+   "hint": "ㅔ 前加 y",
+   "index": 7
+  },
+  {
+   "char": "ㅗ",
+   "roman": "o",
+   "name": "오",
+   "hint": "圆唇，近汉语 o",
+   "index": 8
+  },
+  {
+   "char": "ㅘ",
+   "roman": "wa",
+   "name": "와",
+   "hint": "ㅗ+ㅏ 快速连读",
+   "index": 9
+  },
+  {
+   "char": "ㅙ",
+   "roman": "wae",
+   "name": "왜",
+   "hint": "ㅗ+ㅐ",
+   "index": 10
+  },
+  {
+   "char": "ㅚ",
+   "roman": "oe",
+   "name": "외",
+   "hint": "现代首尔音读作 we",
+   "index": 11
+  },
+  {
+   "char": "ㅛ",
+   "roman": "yo",
+   "name": "요",
+   "hint": "ㅗ 前加 y",
+   "index": 12
+  },
+  {
+   "char": "ㅜ",
+   "roman": "u",
+   "name": "우",
+   "hint": "圆唇，近汉语 u",
+   "index": 13
+  },
+  {
+   "char": "ㅝ",
+   "roman": "wo",
+   "name": "워",
+   "hint": "ㅜ+ㅓ",
+   "index": 14
+  },
+  {
+   "char": "ㅞ",
+   "roman": "we",
+   "name": "웨",
+   "hint": "ㅜ+ㅔ",
+   "index": 15
+  },
+  {
+   "char": "ㅟ",
+   "roman": "wi",
+   "name": "위",
+   "hint": "ㅜ+ㅣ",
+   "index": 16
+  },
+  {
+   "char": "ㅠ",
+   "roman": "yu",
+   "name": "유",
+   "hint": "ㅜ 前加 y",
+   "index": 17
+  },
+  {
+   "char": "ㅡ",
+   "roman": "eu",
+   "name": "으",
+   "hint": "扁唇，舌后缩，近汉语「资」的元音",
+   "index": 18
+  },
+  {
+   "char": "ㅢ",
+   "roman": "ui",
+   "name": "의",
+   "hint": "ㅡ+ㅣ；作属格助词时常读 에",
+   "index": 19
+  },
+  {
+   "char": "ㅣ",
+   "roman": "i",
+   "name": "이",
+   "hint": "同汉语 i",
+   "index": 20
+  }
+ ],
+ "batchim": [
+  {
+   "char": "",
+   "label": "无收音",
+   "hint": "开音节，发音干净结束",
+   "index": 0
+  },
+  {
+   "char": "ㄱ",
+   "label": "대표 ㄱ",
+   "hint": "代表音 [k̚]：ㄱ ㄲ ㅋ ㄳ ㄺ 都读这个",
+   "index": 1
+  },
+  {
+   "char": "ㄴ",
+   "label": "대표 ㄴ",
+   "hint": "代表音 [n]：ㄴ ㄵ ㄶ",
+   "index": 4
+  },
+  {
+   "char": "ㄷ",
+   "label": "대표 ㄷ",
+   "hint": "代表音 [t̚]：ㄷ ㅅ ㅆ ㅈ ㅊ ㅌ ㅎ",
+   "index": 7
+  },
+  {
+   "char": "ㄹ",
+   "label": "대표 ㄹ",
+   "hint": "代表音 [l]：ㄹ ㄼ ㄽ ㄾ ㅀ",
+   "index": 8
+  },
+  {
+   "char": "ㅁ",
+   "label": "대표 ㅁ",
+   "hint": "代表音 [m]：ㅁ ㄻ",
+   "index": 16
+  },
+  {
+   "char": "ㅂ",
+   "label": "대표 ㅂ",
+   "hint": "代表音 [p̚]：ㅂ ㅍ ㅄ ㄿ",
+   "index": 17
+  },
+  {
+   "char": "ㅇ",
+   "label": "대표 ㅇ",
+   "hint": "代表音 [ŋ]：ㅇ",
+   "index": 21
+  }
+ ],
+ "lOrder": [
+  "ㄱ",
+  "ㄲ",
+  "ㄴ",
+  "ㄷ",
+  "ㄸ",
+  "ㄹ",
+  "ㅁ",
+  "ㅂ",
+  "ㅃ",
+  "ㅅ",
+  "ㅆ",
+  "ㅇ",
+  "ㅈ",
+  "ㅉ",
+  "ㅊ",
+  "ㅋ",
+  "ㅌ",
+  "ㅍ",
+  "ㅎ"
+ ],
+ "vOrder": [
+  "ㅏ",
+  "ㅐ",
+  "ㅑ",
+  "ㅒ",
+  "ㅓ",
+  "ㅔ",
+  "ㅕ",
+  "ㅖ",
+  "ㅗ",
+  "ㅘ",
+  "ㅙ",
+  "ㅚ",
+  "ㅛ",
+  "ㅜ",
+  "ㅝ",
+  "ㅞ",
+  "ㅟ",
+  "ㅠ",
+  "ㅡ",
+  "ㅢ",
+  "ㅣ"
+ ],
+ "tOrder": [
+  "",
+  "ㄱ",
+  "ㄲ",
+  "ㄳ",
+  "ㄴ",
+  "ㄵ",
+  "ㄶ",
+  "ㄷ",
+  "ㄹ",
+  "ㄺ",
+  "ㄻ",
+  "ㄼ",
+  "ㄽ",
+  "ㄾ",
+  "ㄿ",
+  "ㅀ",
+  "ㅁ",
+  "ㅂ",
+  "ㅄ",
+  "ㅅ",
+  "ㅆ",
+  "ㅇ",
+  "ㅈ",
+  "ㅊ",
+  "ㅋ",
+  "ㅌ",
+  "ㅍ",
+  "ㅎ"
+ ]
+}
