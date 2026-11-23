@@ -33,6 +33,7 @@ const VIEWS = [
   { name: 'iphone-promax',  w: 430,  h: 932,  mobile: true,  tab: true,  pic: false },
   { name: 'ipad-portrait',  w: 768,  h: 1024, mobile: true,  tab: true,  pic: true  },
   { name: 'ipad-landscape', w: 1024, h: 768,  mobile: true,  tab: false, pic: true  },
+  { name: 'phone-landscape', w: 667, h: 375,  mobile: true,  tab: false, pic: true  },
   { name: 'laptop',         w: 1440, h: 900,  mobile: false, tab: false, pic: true  },
 ];
 const PAGES = ['home', 'alpha', 'dict', 'grammar', 'settings'];

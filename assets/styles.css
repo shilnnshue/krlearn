@@ -834,6 +834,8 @@ input { font-family: inherit; font-size: inherit; }
 /* 手机横屏：竖向空间最紧张，学习页压缩行高、缩小题干 */
 @media (orientation: landscape) and (max-height: 520px) {
   :root { --top-h: 46px; }
+  /* 横屏时竖向只剩 370px 出头，底栏太占地方，让位给内容 */
+  #tabbar { display: none; }
   .study-top { padding: 6px var(--pad); }
   .flashcard { min-height: 0; padding: 6px 0; }
   .flashcard .word { font-size: clamp(28px, 7.5vh, 46px); }
@@ -860,4 +862,11 @@ input { font-family: inherit; font-size: inherit; }
     overflow: hidden;
   }
   #tabbar .tb-item { height: 54px; }
+}
+
+/* 横屏手机：这一条必须排在「平板胶囊底栏」之后 —— 667×375 会同时命中两个查询，
+   靠前后顺序决定谁赢。横屏只剩 370px 高，底栏直接让位给内容。 */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --tab-h: 0px; --shell-pb: 60px; }
+  #tabbar { display: none; }
 }
