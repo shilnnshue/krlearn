@@ -5,6 +5,8 @@
 
 **双击 `启动.bat` 即可运行**，浏览器自动打开。关闭黑窗口即退出。
 
+**线上版：<https://shilnnshue.github.io/krlearn/>** —— 手机也能直接开，见 [一·五](#一五部署到公网免费)。
+
 ---
 
 ## 一、启动
@@ -39,11 +41,20 @@
 
 ## 一·五、部署到公网（免费）
 
-想让手机、让别人也能用，走 **GitHub + Cloudflare Pages**，全免费、不用备案。
-完整步骤见 **[`DEPLOY.md`](DEPLOY.md)**。仓库已经初始化好（11 个提交 / 16,265 个文件），
-本地只差 `git remote add` + `git push` 两步。
+**已经上线了：<https://shilnnshue.github.io/krlearn/>**（GitHub Pages，仓库 `shilnnshue/krlearn`）
 
-先记住两个硬约束：
+这是**临时可用的第二条路**：仓库是 public，开 Pages 就不用另注册账号，50 秒构建完成。
+代价是国内访问一般（github.io 时常被 DNS 污染），且微信里打不开。正式对外还是建议
+GitHub + Cloudflare Pages，全免费、不用备案，完整步骤见 **[`DEPLOY.md`](DEPLOY.md)**。
+
+GitHub Pages 有两个额外注意点：
+
+- 根目录必须有 **`.nojekyll`**（已加），否则 Jekyll 会跳过 `_headers` 这类下划线开头的文件，
+  而且会去逐个处理那 1.6 万个文件
+- 站点总大小软上限 **1GB**、带宽 100GB/月；现在是 292MB，约 3.4 万次完整访问就吃满
+  （实际一条音频才 15KB 上下，够测试用）
+
+换成 Cloudflare Pages 时要记住两个硬约束：
 
 - **Cloudflare Pages 免费版上限 20,000 个文件**，现在用了 16,265 个（音频占 16,219），余量约 3,700。
   每加一个词会新增 **19 个文件**（词 1 + 例句 3 + 变位 15），也就是**再加约 195 个词就撞墙**。
