@@ -2,52 +2,60 @@
 
 前端已经写好了，这里是把「云端那一半」跑起来的全部步骤。**只跑一次，之后不用管。**
 
-## 0. 你需要什么
+## 0. 现在的状态（2026-11-24）
 
-- 一个 Cloudflare 账号（你已经在用了 —— `askdiandian.com` 的 Worker 就在这上面）
-- 一个能挂子域的域名（`krlearn-api.askdiandian.com`）
+已经做完的部分，不用再重复：
 
-不需要：邮箱服务、数据库、服务器、备案。
+| 项 | 值 |
+|---|---|
+| Cloudflare 账号 | `shilinxue66@gmail.com` / `94cf08bee225570ba5be37a97e70ea31` |
+| KV 命名空间 | `KR` = `fb9a1aec72dd4a41b0e1233dd7a380c4`（已写进 `wrangler.toml`） |
+| Worker | `krlearn-api` 已部署，地址 `https://krlearn-api.shilinxue66.workers.dev` |
+| 两个脚本 | `deploy.py`（部署）、`attach_domain.py`（挂域名 + 验证） |
 
-## 1. 建 KV 命名空间
+**唯一卡点：这个账号里没有任何域名（`/zones` 返回 0 条）。**
+
+- `workers.dev` 在国内 DNS 被污染（解析到 `108.160.163.117`，21 秒超时），不能当正式地址
+- `askdiandian.com` 的 NS 是 `ns3/ns4.dnsv4.com`，**在 DNSPod 上，不在 Cloudflare**
+- Cloudflare Worker 只能挂**自己账号里已托管域名**的子域，所以必须先把域名搬过来
+
+## 1. 把 askdiandian.com 加到 Cloudflare（免费，约 10 分钟）
+
+1. 打开 https://dash.cloudflare.com → **Add a site** → 输入 `askdiandian.com` → 选 **Free**
+2. Cloudflare 会扫一遍现有解析，核对这 4 条 A 记录都在，**并且全部改成「仅 DNS」（灰色云朵）**：
+
+   | 名称 | 值 |
+   |---|---|
+   | `www` | `139.196.16.27`、`8.153.95.178` |
+   | `note3-prev-api` | `139.224.187.188`、`47.102.139.206` |
+
+   灰云很重要：原来的阿里云 WAF / CDN 还在链路里，套上橙云会变成「CF → 阿里云」两层代理，
+   反而容易出问题。
+3. 继续到底，Cloudflare 会给你两个 NS（形如 `kate.ns.cloudflare.com`）
+4. 去域名注册商那里改 NS：把 `ns3.dnsv4.com` / `ns4.dnsv4.com` 换成上面那两个
+   （在哪里注册的就到哪里改：阿里云「域名 → DNS修改」，或腾讯云/DNSPod 的域名管理）
+5. 等激活（通常几分钟，偶尔几小时）。随时可以查：
 
 ```bash
 cd server
-npx wrangler login          # 浏览器点一下授权
-npx wrangler kv namespace create KR
+python attach_domain.py --check
 ```
 
-输出长这样，把 `id` 抄下来：
+## 2. 挂自定义域 + 重新部署（一条命令）
 
-```
-[[kv_namespaces]]
-binding = "KR"
-id = "a1b2c3d4e5f6..."
-```
-
-填进 `server/wrangler.toml` 里那行占位符。
-
-## 2. 部署
+激活之后再跑：
 
 ```bash
-npx wrangler deploy
+cd server
+python attach_domain.py
 ```
 
-成功后会给你一个 `*.workers.dev` 地址。**别拿它当正式地址** —— 国内基本打不开。
+它会做四件事：写 `[[routes]] custom_domain = true` → `wrangler deploy` →
+**从本机（国内网络）直连** `https://krlearn-api.askdiandian.com/api/stats` 验证 → 报告结果。
 
-## 3. 挂自定义域（关键一步）
+浏览器需要 DNS 缓存刷新的话：`ipconfig /flushdns`。
 
-Cloudflare 控制台 → Workers & Pages → `krlearn-api` → Settings → **Domains & Routes** →
-Add → Custom domain → 填 `krlearn-api.askdiandian.com`（等几十秒生效）。
-
-验证：
-
-```bash
-curl https://krlearn-api.askdiandian.com/health
-# {"ok":true,"service":"krlearn-api"}
-```
-
-## 4. 把地址告诉前端
+## 3. 把地址告诉前端
 
 改 `assets/account.js` 第 30 行左右：
 
@@ -58,7 +66,7 @@ const CLOUD_DEFAULT = 'https://krlearn-api.askdiandian.com';
 提交推送即可。已经打开过的页面可以在控制台临时试：`KR.setCloud('https://krlearn-api.askdiandian.com')`
 （它会写进 localStorage 并刷新，正式上线还是要改源码，否则别的用户拿不到）。
 
-## 5. 验收
+## 4. 验收
 
 浏览器控制台：
 
