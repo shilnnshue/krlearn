@@ -297,7 +297,7 @@ function cloudLine() {
 
 function feeLine() {
   return `<div class="gate-fee">不收邮箱、不发验证码，也就不存在找回密码。
-    注册完请<b>截图保存</b>，丢了只能重新注册（旧进度还在云端，不会消失）。</div>`;
+    注册完请<b>截图保存</b>，丢了只能重新注册${cloud ? '（旧进度还在云端，不会消失）' : '（进度只在这台设备，丢了就真没了）'}。</div>`;
 }
 
 function paint() {
