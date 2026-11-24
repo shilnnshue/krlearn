@@ -22,8 +22,7 @@ const ROUTES = [
     pretendToBeVisual: true,
     virtualConsole: vc,
     beforeParse(win) {
-      // 过注册闸门：写一个本机会话（token=local → 不连云端）
-      try { win.localStorage.setItem('krlearn.sess', JSON.stringify({ u: 'selftest', token: 'local', created: Date.now() })); } catch (e) {}
+      // 页面已经不需要注册（2026-11-24 起），这里不用预置会话
       // jsdom 不自带 fetch，把 Node 的塞进去（页面用 fetch 读 data/*.json）
       win.fetch = (u, o) => fetch(new URL(u, BASE).href, o);
       win.HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
@@ -89,6 +88,17 @@ const ROUTES = [
 
   const leaked = doc.querySelectorAll('button button').length;
   console.log('嵌套按钮（非法 HTML）:', leaked);
+
+  // 账号功能已下线（2026-11-24）：首屏不该有闸门，设置页不该再出现账号入口
+  win.location.hash = '#settings';
+  win.dispatchEvent(new win.Event('hashchange'));
+  await new Promise(r => setTimeout(r, 300));
+  const setTxt = (doc.querySelector('#view') || {}).textContent || '';
+  const gateLeft = !!doc.querySelector('#gate') || doc.body.classList.contains('gated');
+  const accLeft = /账号|退出登录|立即同步|注册人数/.test(setTxt);
+  console.log('注册闸门:', gateLeft ? '✗ 仍在（应该没有）' : '✓ 已移除');
+  console.log('设置页账号入口:', accLeft ? '✗ 残留' : '✓ 已移除');
+  if (gateLeft || accLeft) problems++;
 
   console.log('---');
   console.log('错误总数:', errs.length, '| 有问题的视图:', problems);

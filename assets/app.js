@@ -5,8 +5,8 @@
 'use strict';
 
 /* ==================== 常量 ==================== */
-/* 存档键。注册之后由 boot() 换成 krlearn.v1.<用户名>，实现一机多账号互不干扰。
-   账号模块缺失时退回老键，不至于直接白屏。 */
+/* 存档键。就这一把：进度只存在这台设备的浏览器里，没有账号、没有分仓。
+   曾经按账号存过（krlearn.v1.<用户名>），boot() 里会把最新的那份搬回来。 */
 let SKEY = 'krlearn.v1';
 const R = FSRS.Rating, ST = FSRS.State;
 const F = FSRS.fsrs(FSRS.generatorParameters({
@@ -61,7 +61,6 @@ function save() {
     DB.meta = DB.meta || { updatedAt: 0 };
     DB.meta.updatedAt = Date.now();
     localStorage.setItem(SKEY, JSON.stringify(DB));
-    if (window.KR && KR.onSave) KR.onSave(DB);   // 节流推云端；没登录/没云端时是空操作
   } catch (e) { toast('存储空间不足'); }
 }
 
@@ -383,7 +382,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 });
 
 /* ==================== 渲染入口 ==================== */
-let statT = 0;
 function render() {
   audioStop();                       // 换页即静音，别把上一页的朗读带过来
   const v = $('#view');
@@ -409,12 +407,6 @@ function render() {
   $('#tb-title').textContent = TITLES[route.name] || '한글·学';
   syncTabbar();
   bindView();
-
-  // 进设置页顺手拉一次注册人数（60 秒内不重复请求，否则 stats 回来又 render，转不停）
-  if (route.name === 'settings' && window.KR && !KR.isLocal() && Date.now() - statT > 60000) {
-    statT = Date.now();
-    KR.stats().then(j => { if (j && route.name === 'settings') render(); });
-  }
 
   // 转场：先把跟手时残留的内联 transform 清掉，再加一次性动画 class
   v.style.transform = '';
@@ -1685,54 +1677,10 @@ function viewStats() {
 }
 
 /* ==================== 设置 ==================== */
-async function doSyncNow() {
-  if (!window.KR) return;
-  if (KR.isLocal()) { toast('本地模式：没有云端可同步'); return; }
-  toast('正在同步…');
-  const j = await KR.syncNow(DB);
-  if (j && j.ok) toast('已同步'); else toast('同步失败：' + syncErrText(j && j.err));
-  render();
-}
-function relTime(ts) {
-  const d = Date.now() - ts;
-  if (d < 60000) return '刚刚';
-  if (d < 3600000) return Math.floor(d / 60000) + ' 分钟前';
-  if (d < 86400000) return Math.floor(d / 3600000) + ' 小时前';
-  return Math.floor(d / 86400000) + ' 天前';
-}
-function syncErrText(e) {
-  return e === 'offline' ? '网络不通' : e === 'auth' ? '登录已失效，退出去重登一下' : ('服务端返回 ' + (e || '错误'));
-}
-
-/* 账号卡：把「你现在是谁 / 进度在哪 / 云端几个人在用」一次说清楚 */
-function acctCard(a) {
-  const state = !a.cloud
-    ? '本地模式 · 进度只在这台设备'
-    : (!a.synced ? '云端未连接' : (a.ok === false ? '同步失败：' + syncErrText(a.err) : '云同步已开启'));
-  return `
-  <div class="sec-title">账号</div>
-  <div class="card">
-    <div class="row"><div class="r-main"><div class="r-title" style="font-family:var(--mono);letter-spacing:.03em">${esc(a.u)}</div>
-      <div class="r-sub">${esc(state)}</div></div>
-      <div class="r-val">${a.last ? esc(relTime(a.last)) : '未同步'}</div></div>
-    ${a.users != null ? `<div class="row"><div class="r-main"><div class="r-title">注册人数</div>
-      <div class="r-sub">近 7 天活跃 ${a.active7d != null ? a.active7d : '—'} 人</div></div>
-      <div class="r-val">${a.users}</div></div>` : ''}
-    ${a.localToken && a.cloud ? `<div class="row click" data-act="upgrade"><div class="r-main"><div class="r-title">连接到云端</div>
-      <div class="r-sub">把这个本地账号注册到云端，本机进度一起带上去</div></div>${ICON.chev}</div>` : ''}
-    <div class="row click" data-act="syncnow"><div class="r-main"><div class="r-title">立即同步</div>
-      <div class="r-sub">${a.synced ? '把手上这台的进度推到云端' : '本地模式没有云端可推'}</div></div>${ICON.chev}</div>
-    <div class="row click" data-act="logout"><div class="r-main"><div class="r-title">退出登录</div>
-      <div class="r-sub">进度留在云端，换设备登录同一个账号能拿回来</div></div>${ICON.chev}</div>
-  </div>`;
-}
-
 function viewSettings() {
   const s = DB.settings;
-  const acc = (window.KR && KR.info) ? KR.info() : null;
   const accents = [['jade', '#2F5D50'], ['terra', '#B5553C'], ['indigo', '#3D4E8A'], ['plum', '#7A3E5C'], ['ochre', '#96692B'], ['slate', '#3A4750']];
   return `
-  ${acc ? acctCard(acc) : ''}
   <div class="sec-title">学习</div>
   <div class="card">
     <div class="row click" data-go="deck"><div class="r-main"><div class="r-title">当前词本</div></div><div class="r-val">${esc(curDeck() ? curDeck().name : '')}</div>${ICON.chev}</div>
@@ -1953,17 +1901,6 @@ function bindView() {
       }
       if (a === 'import') { const f = $('#file-import'); if (f) f.click(); }
       if (a === 'export') doExport();
-      if (a === 'syncnow') doSyncNow();
-      if (a === 'upgrade') {
-        const p = prompt('输入这个账号的密码（注册时那 8 位）。\n云端会建一个同名账号，之后在别的设备就用它登录。');
-        if (p) KR.upgrade(p).then(r => {
-          if (r.ok) { toast('已连上云端，进度已上传'); setTimeout(() => location.reload(), 800); }
-          else toast(r.err || '连接失败');
-        });
-      }
-      if (a === 'logout') {
-        if (confirm('退出登录？进度已经同步到云端，换设备或重新登录都能拿回来。')) KR.logout();
-      }
       if (a === 'reset') {
         if (confirm('确定清空所有学习进度、笔记与统计？此操作不可恢复。')) {
           localStorage.removeItem(SKEY); DB = JSON.parse(JSON.stringify(DEFAULTS));
@@ -2308,8 +2245,29 @@ document.addEventListener('click', e => {
 }, true);
 
 /* ==================== 启动 ==================== */
+/* 曾经注册过的那批人，进度存在「krlearn.v1.<用户名>」下面。
+ * 账号功能下线后主键读不到东西，会看到一个空 App —— 这里把最新的一份搬回来。
+ * 只在主键为空时动，平时零影响。 */
+function rescueArchive() {
+  try {
+    if (localStorage.getItem(SKEY)) return;
+    let best = null, bt = -1;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf('krlearn.v1.') !== 0 || k === 'krlearn.v1.migrated') continue;
+      try {
+        const d = JSON.parse(localStorage.getItem(k));
+        if (!d || !d.progress) continue;
+        const t = (d.meta && d.meta.updatedAt) || 0;
+        if (t > bt) { bt = t; best = d; }
+      } catch (e) {}
+    }
+    if (best) localStorage.setItem(SKEY, JSON.stringify(best));
+  } catch (e) {}
+}
+
 async function boot() {
-  if (window.KR && KR.dbKey) SKEY = KR.dbKey();
+  rescueArchive();
   load(); applyTheme();
   try {
     const [L, W, D, C, LM, G] = await Promise.all([
@@ -2360,6 +2318,6 @@ async function boot() {
   });
 }
 
-/* 没注册就先注册 —— 闸门在 account.js 里，过了才调 boot() */
-if (window.KR && KR.ready) KR.ready(boot); else boot();
+/* 打开即用 —— 不要注册，不改这一行 */
+boot();
 })();
