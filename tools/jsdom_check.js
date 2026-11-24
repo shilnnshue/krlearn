@@ -1,8 +1,9 @@
 // jsdom 回归：在没有可用浏览器的机器上，直接跑页面脚本验证各视图不报错、内容正确。
 // 用法：node tools/jsdom_check.js [http://127.0.0.1:8765/index.html]
+//       KR_BASE=... node tools/jsdom_check.js      （check_all.sh 走这条）
 const { JSDOM, VirtualConsole } = require('jsdom');
 
-const BASE = process.argv[2] || 'http://127.0.0.1:8765/index.html';
+const BASE = process.env.KR_BASE || process.argv[2] || 'http://127.0.0.1:8765/index.html';
 const ROUTES = [
   'home', 'alpha', 'dict', 'stats', 'settings',
   'list/wrong', 'list/due', 'list/learning', 'list/mastered',

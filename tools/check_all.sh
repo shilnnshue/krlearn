@@ -12,6 +12,8 @@ PY="C:/Users/27028/.workbuddy/binaries/python/versions/3.13.12/python.exe"
 NODE="/c/Users/27028/.workbuddy/binaries/node/versions/22.22.2-2/node.exe"
 NODE_MODULES="C:/Users/27028/.workbuddy/binaries/node/workspace/node_modules"
 BASE="${KR_BASE:-http://127.0.0.1:8765/index.html}"
+# jsdom_check.js 优先读这个环境变量，这样 run_node 的第二个参数能老老实实是「回显行数」
+export KR_BASE="$BASE"
 QUICK=0
 [ "${1:-}" = "--quick" ] && QUICK=1
 
@@ -36,7 +38,7 @@ if curl -sf --noproxy '*' -m 3 "$BASE" > /dev/null 2>&1; then SERVED=1; fi
 
 line "== 2/7 视图回归（node + jsdom，不依赖浏览器）=="
 if [ "$SERVED" = "1" ]; then
-  run_node tools/jsdom_check.js "$BASE" 30
+  run_node tools/jsdom_check.js 30
 else
   echo "✗ 本地服务没有响应（$BASE）"
   echo "  先双击「启动.bat」，或运行：KR_NO_BROWSER=1 python serve.py"
