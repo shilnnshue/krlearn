@@ -208,11 +208,25 @@ async function upgrade(pass) {
 const S = { last: 0, ok: null, rev: 0, syncing: false, pending: null, err: '', users: null, active7d: null, dirty: false };
 let syncT = 0;
 
-function onSave(db) {
+/* 推送节奏。KV 免费额度是「整个账号每天 1000 次写」，不是每用户 1000 —— 这个数字决定了节奏。
+ * 背一个词存一次档，按 2.5 秒节流算，一个人背 10 分钟就能推 100 多次，十个人就把额度烧干。
+ * 所以改成：平时攒 45 秒推一次；距上次推送超过 90 秒（新开一轮）就 5 秒后先推一次，
+ * 这样「刚进来的进度」能尽快上云，而连续背词期间不会一直写 KV。
+ * 真正的安全网是下面的 pagehide / visibilitychange —— 手机切后台、关页面都会补一次。 */
+const PUSH_IDLE = 45000;    // 连续操作时的合并窗口
+const PUSH_FRESH = 5000;    // 距上次推送超过 FRESH_GAP 时用的短窗口
+const FRESH_GAP = 90000;
+
+function onSave() {
   if (!cloud || !sess || sess.token === 'local') return;
   S.dirty = true;
   clearTimeout(syncT);
-  syncT = setTimeout(() => push(db), 2500);
+  const wait = (Date.now() - (S.last || 0) > FRESH_GAP) ? PUSH_FRESH : PUSH_IDLE;
+  syncT = setTimeout(() => {
+    if (!S.dirty) return;
+    const db = lsGet(dbKey(), null);   // 到点再读，拿到的是最新档，不是 45 秒前那份
+    if (db) push(db);
+  }, wait);
 }
 
 async function push(db) {
@@ -257,18 +271,30 @@ async function stats() {
   return null;
 }
 
-/* 页面要走了：补一次，别把最后几步丢了 */
-window.addEventListener('pagehide', () => {
+/* 页面要走了 / 切到后台：补一次，别把最后几步丢了。
+ * 手机上是切后台更常见（pagehide 有时不触发），两个都听。 */
+function flushNow() {
   if (!cloud || !sess || sess.token === 'local' || !S.dirty) return;
+  clearTimeout(syncT);
   const db = lsGet(dbKey(), null);
   if (!db) return;
+  const body = JSON.stringify({ db, updatedAt: (db.meta && db.meta.updatedAt) || Date.now() });
+  // keepalive 的请求体有 64KB 上限，超了会静默失败 —— 那就退化成普通请求，
+  // 反正 45 秒内已经推过一次，丢不了多少
+  if (body.length > 60000) { push(db); return; }
   try {
     fetch(cloud + '/api/sync', {
       method: 'POST', keepalive: true,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sess.token },
-      body: JSON.stringify({ db, updatedAt: (db.meta && db.meta.updatedAt) || Date.now() })
+      body
     });
+    S.last = Date.now();
+    S.dirty = false;
   } catch (e) {}
+}
+window.addEventListener('pagehide', flushNow);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushNow();
 });
 
 /* ==================== 注册 / 登录 界面 ==================== */

@@ -1,4 +1,5 @@
 name = "krlearn-api"
+account_id = "94cf08bee225570ba5be37a97e70ea31"
 main = "worker.js"
 compatibility_date = "2026-11-01"
 
@@ -7,7 +8,7 @@ compatibility_date = "2026-11-01"
 # 换算下来几百个活跃用户没问题；到瓶颈再换 D1（写额度高一个量级）。
 [[kv_namespaces]]
 binding = "KR"
-id = "把 wrangler kv namespace create KR 输出的 id 填这里"
+id = "fb9a1aec72dd4a41b0e1233dd7a380c4"
 
 # 自定义域：在 Cloudflare 控制台 Workers → 你的 Worker → Settings → Domains & Routes 里加，
 # 例如 krlearn-api.askdiandian.com。workers.dev 的域名在国内基本打不开，别直接用。

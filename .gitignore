@@ -29,3 +29,8 @@ node_modules/
 
 # CDP 截图验收产物（本地看效果用，不进仓库）
 shots/
+
+# ---- Cloudflare 部署凭据（token 绝不进仓库）----
+.dev.vars
+.env
+.wrangler/

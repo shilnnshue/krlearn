@@ -380,7 +380,15 @@ const getJson = async url => {
       await sleep(400);
       await ev(cdp, `localStorage.setItem('krlearn.cloud', ${JSON.stringify(MOCK)})`);
       await cdp.send('Page.reload');
-      await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || []).length !== 0`, 12000);
+      // 原来的条件是 `(el || []).length !== 0` —— Element 没有 length，永远 undefined !== 0，
+      // 等于没等，随后 KR 还没定义就断言，偶发 "KR is not defined"。这里等真正的就绪信号。
+      await waitUntil(cdp, `(() => {
+        try {
+          const v = document.getElementById('view');
+          return typeof KR !== 'undefined' && !!KR.info && !document.getElementById('gate')
+                 && !!v && v.innerHTML.length > 200;
+        } catch (e) { return false; }
+      })()`, 15000);
       await sleep(600);
       const beforeUp = await ev(cdp, `(() => ({
         gate: !!document.getElementById('gate'),
