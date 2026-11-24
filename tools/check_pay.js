@@ -22,6 +22,8 @@ const ok = (cond, label, extra) => {
   const dom = await JSDOM.fromURL(BASE, {
     runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(win) {
+      // 过注册闸门：写一个本机会话（token=local → 不连云端）
+      try { win.localStorage.setItem('krlearn.sess', JSON.stringify({ u: 'selftest', token: 'local', created: Date.now() })); } catch (e) {}
       win.fetch = (u, o) => fetch(new URL(u, BASE).href, o);
       win.HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
       win.HTMLMediaElement.prototype.pause = function () {};

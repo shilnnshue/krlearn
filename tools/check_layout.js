@@ -167,6 +167,10 @@ async function shot(cdp, name) {
       await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: v.mobile, maxTouchPoints: 5 });
       await cdp.send('Page.navigate', { url: BASE });
       await sleep(1200);
+      // 过注册闸门：像老用户一样写一个本机会话（token=local → 不连云端，纯本地跑）
+      await ev(cdp, `(() => { try { localStorage.setItem('krlearn.sess', JSON.stringify({ u: 'selftest', token: 'local', created: Date.now() })); } catch (e) {} })()`);
+      await cdp.send('Page.reload');
+      await sleep(1500);
 
       const errs = await ev(cdp, 'JSON.stringify(window.__errs || [])');
       ok(errs === '[]', '页面无 JS 错误', errs === '[]' ? '' : errs);

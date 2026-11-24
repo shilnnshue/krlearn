@@ -22,6 +22,8 @@ const ROUTES = [
     pretendToBeVisual: true,
     virtualConsole: vc,
     beforeParse(win) {
+      // 过注册闸门：写一个本机会话（token=local → 不连云端）
+      try { win.localStorage.setItem('krlearn.sess', JSON.stringify({ u: 'selftest', token: 'local', created: Date.now() })); } catch (e) {}
       // jsdom 不自带 fetch，把 Node 的塞进去（页面用 fetch 读 data/*.json）
       win.fetch = (u, o) => fetch(new URL(u, BASE).href, o);
       win.HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };

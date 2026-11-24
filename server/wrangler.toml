@@ -1,0 +1,13 @@
+name = "krlearn-api"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+# 免费额度（2026）：读 10 万/天、写 1000/天、存 1GB。
+# 一个用户一天背词大概触发 2–4 次写（前端 2.5 秒节流 + 离开页面补一次），
+# 换算下来几百个活跃用户没问题；到瓶颈再换 D1（写额度高一个量级）。
+[[kv_namespaces]]
+binding = "KR"
+id = "把 wrangler kv namespace create KR 输出的 id 填这里"
+
+# 自定义域：在 Cloudflare 控制台 Workers → 你的 Worker → Settings → Domains & Routes 里加，
+# 例如 krlearn-api.askdiandian.com。workers.dev 的域名在国内基本打不开，别直接用。
