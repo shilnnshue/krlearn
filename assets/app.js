@@ -487,7 +487,13 @@ function viewHome() {
 }
 
 /* ==================== 学习会话 ==================== */
-const Ses = { on: false, queue: [], i: 0, kind: 'new', phase: '', cur: null, quiz: null, res: null, stats: null, deck: null };
+/* rec       每个题号(i)的作答记录，用于左右滑动回看已答过的题
+   quizOf    每个题号第一次出的题，滑回来还是同一道（不会重新抽题型）
+   stamp     每次换题 +1，用来作废「答对后自动跳下一题」的定时器 */
+const Ses = {
+  on: false, queue: [], i: 0, kind: 'new', phase: '', cur: null, quiz: null,
+  res: null, stats: null, deck: null, rec: {}, quizOf: {}, stamp: 0
+};
 
 function startSession(kind) {
   const mode = DB.settings.mode;
@@ -510,7 +516,8 @@ function startSession(kind) {
   Object.assign(Ses, {
     on: true, queue: q.map(w => w.id), i: 0, kind,
     stats: { right: 0, wrong: 0, mk: mode === 'quick' && kind !== 'test' ? 'quick' : 'quiz' },
-    phase: '', cur: null, quiz: null, marked: false
+    phase: '', cur: null, quiz: null, marked: false,
+    rec: {}, quizOf: {}, stamp: 0
   });
   $('#study-wrap').style.display = 'flex';
   nextCard();
@@ -528,6 +535,7 @@ function endSession() {
 
 function nextCard() {
   if (Ses.i >= Ses.queue.length) return showSummary();
+  Ses.stamp++;
   Ses.cur = word(Ses.queue[Ses.i]);
   Ses.quiz = null;
   const p = progOf(Ses.cur.id);
@@ -536,6 +544,7 @@ function nextCard() {
   if (Ses.kind === 'test') {
     Ses.phase = 'quiz';
     Ses.quiz = makeQuiz(Ses.cur, true);
+    Ses.quizOf[Ses.i] = Ses.quiz;
     renderStudy();
     return;
   }
@@ -555,6 +564,40 @@ function nextCard() {
   } else {
     Ses.phase = 'quiz';
     Ses.quiz = makeQuiz(Ses.cur, false);
+    Ses.quizOf[Ses.i] = Ses.quiz;
+  }
+  renderStudy();
+}
+
+/* 答题阶段的左右滑动换题。
+   左滑（dir=1）→ 下一题：当前这题没答就当作「跳过」，不判对错、不动复习进度；
+   右滑（dir=-1）→ 上一题：已答过的显示只读回顾卡，没答过的把原题原样放回来。
+   跳过的题仍留在队列里，所以进度条不动、编号照旧。 */
+function quizSlide(dir) {
+  if (!Ses.on) return;
+  if (Ses.phase !== 'quiz' && Ses.phase !== 'quiz-review') return;
+  if (Ses.phase === 'quiz') {
+    const q = Ses.quiz;
+    if (q && q.type === 'match' && q.done > 0 && !Ses.rec[Ses.i]) {
+      // 连连看盘面已经开了一半：离开前把选中状态放掉，回来不会有悬空的引用
+      q.pick = null;
+    }
+  }
+  const j = Ses.i + dir;
+  if (j < 0) { toast('已经是第一题'); return; }
+  if (j >= Ses.queue.length) { Ses.stamp++; showSummary(); return; }
+
+  Ses.stamp++;
+  Ses.i = j;
+  Ses.cur = word(Ses.queue[j]);
+  const rec = Ses.rec[j];
+  if (rec) {
+    Ses.quiz = rec.quiz;
+    Ses.phase = 'quiz-review';
+  } else {
+    Ses.quiz = Ses.quizOf[j] || makeQuiz(Ses.cur, Ses.kind === 'test');
+    Ses.quizOf[j] = Ses.quiz;
+    Ses.phase = 'quiz';
   }
   renderStudy();
 }
@@ -722,12 +765,20 @@ function renderStudy() {
       </div>`;
   } else if (Ses.phase === 'quiz') {
     body = renderQuizBody();
+  } else if (Ses.phase === 'quiz-review') {
+    body = renderQuizReview();
   } else if (Ses.phase === 'result') {
     body = renderResult();
   }
 
   box.innerHTML = top + body;
   bindStudy();
+}
+
+/* 答题页底部：滑动提示 + 跳过。作答后跳过就没意义了，pickOption 里会把它摘掉 */
+function quizFoot() {
+  return `${HAS_TOUCH ? '<div class="study-swipetip">左滑跳过　·　右滑回看上一题</div>' : ''}
+    <button class="quiz-skip" data-act="skip">跳过这题</button>`;
 }
 
 function renderQuizBody() {
@@ -746,14 +797,16 @@ function renderQuizBody() {
         ${q.opts.map((o, i) => `<button class="opt" data-opt="${esc(o.form)}"><span class="idx">${'ABCD'[i]}</span><span class="txt kr" style="font-size:20px">${esc(o.form)}</span></button>`).join('')}
       </div>
       <div id="fb-slot"></div>
+      ${quizFoot()}
     </div>`;
   }
 
   if (q.type === 'match') {
+    q.pick = null;                       // DOM 重建，旧的选中元素引用作废
     const left = q.left.map(t =>
-      `<button class="m kr-side" data-side="L" data-oid="${esc(t.id)}">${esc(t.text)}</button>`).join('');
+      `<button class="m kr-side${t.done ? ' done' : ''}" data-side="L" data-oid="${esc(t.id)}">${esc(t.text)}</button>`).join('');
     const right = q.right.map(t =>
-      `<button class="m" data-side="R" data-oid="${esc(t.id)}">${esc(t.text)}</button>`).join('');
+      `<button class="m${t.done ? ' done' : ''}" data-side="R" data-oid="${esc(t.id)}">${esc(t.text)}</button>`).join('');
     return `
     <div class="study-body center">
       <div class="q-stem" style="padding:10px 0 18px">
@@ -765,6 +818,7 @@ function renderQuizBody() {
         <div class="mg-col">${right}</div>
       </div>
       <div id="fb-slot"></div>
+      ${q.done ? '' : quizFoot()}
     </div>`;
   }
 
@@ -799,12 +853,57 @@ function renderQuizBody() {
     <div class="q-stem">${stemHtml}</div>
     <div class="opts" data-qt="q4">${opts}</div>
     <div id="fb-slot"></div>
+    ${quizFoot()}
+  </div>`;
+}
+
+/* 已答过的题：只读回顾，不重放选项（重放会让人再点一遍、偷偷重复计分） */
+function reviewPickText(q, picked) {
+  if (!q || picked == null) return '';
+  if (q.type === 'q4') {
+    const o = (q.opts || []).find(x => x.id === picked);
+    return o ? (o.korean + '　' + o.chinese) : '';
+  }
+  if (q.type === 'conj') return picked;
+  return '';
+}
+
+function renderQuizReview() {
+  const rec = Ses.rec[Ses.i];
+  if (!rec) return renderQuizBody();          // 理论上不会走到
+  const w = Ses.cur, q = rec.quiz, ok = rec.correct;
+  const isMatch = q && q.type === 'match';
+  const picked = isMatch ? '' : reviewPickText(q, rec.picked);
+  const ans = isMatch
+    ? '四组配对完成'
+    : (q && q.type === 'conj' ? q.answerForm : (w.korean + '　' + w.chinese));
+
+  return `
+  <div class="study-body center">
+    <div class="q-stem" style="padding-bottom:18px">
+      <div class="q-tag">第 ${Ses.i + 1} 题 · 已作答</div>
+      <div class="big kr">${esc(w.korean)}</div>
+      <div style="font-size:14px;color:var(--muted);margin-top:8px">
+        ${esc(w.chinese)}<span class="pill" style="margin-left:8px">${esc(w.pos)}</span>
+      </div>
+    </div>
+    <div class="feedback ${ok ? 'good' : 'bad'}" style="width:100%">
+      <div class="fb-line">${ok ? '✓ 当时答对了' : '✕ 当时答错了'}</div>
+      ${picked ? '<div class="fb-detail kr">你的选择：' + esc(picked) + '</div>' : ''}
+      <div class="fb-detail kr">正确答案：${esc(ans)}</div>
+    </div>
+    <div class="study-actions g2" style="margin-top:16px">
+      <button class="btn btn-ghost" data-slide="-1"${Ses.i === 0 ? ' disabled style="opacity:.4"' : ''}>← 上一题</button>
+      <button class="btn btn-primary" data-slide="1">${Ses.i >= Ses.queue.length - 1 ? '看结果 →' : '下一题 →'}</button>
+    </div>
+    ${HAS_TOUCH ? '<div class="study-swipetip" style="padding-top:10px">左滑下一题　·　右滑上一题</div>' : ''}
   </div>`;
 }
 
 function renderResult() {
   const s = Ses.stats;
   const total = s.right + s.wrong;
+  const skipped = Math.max(0, Ses.queue.length - total);
   const pct = total ? Math.round(s.right / total * 100) : 0;
   return `
   <div class="study-body" style="justify-content:center;justify-content:safe center;text-align:center">
@@ -815,6 +914,7 @@ function renderResult() {
       <div class="sg card"><div class="n" style="color:var(--ok)">${s.right}</div><div class="l">答对</div></div>
       <div class="sg card"><div class="n" style="color:var(--warn)">${s.wrong}</div><div class="l">答错</div></div>
     </div>
+    ${skipped ? `<div style="margin-top:14px;font-size:12.5px;color:var(--muted)">另有 ${skipped} 个词滑过去了，没算进正确率，下次还会出现</div>` : ''}
     <button class="btn btn-primary btn-block mainbtn" style="margin-top:34px" data-ses="close">完成</button>
   </div>`;
 }
@@ -834,11 +934,15 @@ function bindStudy() {
       if (a === 'known-fast') { answer(3); }
       if (a === 'note') { openNote(Ses.cur.id); }
       if (a === 'star') { openStar(Ses.cur.id); }
+      if (a === 'skip') { quizSlide(1); }
     };
   });
   box.querySelectorAll('[data-ses]').forEach(b => { b.onclick = () => { if (b.dataset.ses === 'close') endSession(); }; });
   box.querySelectorAll('.opt').forEach(b => { b.onclick = () => pickOption(b); });
   box.querySelectorAll('.match-grid .m').forEach(b => { b.onclick = () => tapMatch(b); });
+  box.querySelectorAll('[data-slide]').forEach(b => {
+    b.onclick = () => quizSlide(Number(b.dataset.slide));
+  });
 
   const mt = box.querySelector('[data-mode-tgl]');
   if (mt) mt.onclick = () => {
@@ -903,6 +1007,9 @@ function pickOption(btn) {
     opts.forEach(o => { if (!o.classList.contains('right') && !o.classList.contains('wrong')) o.classList.add('dim'); });
   }
 
+  Ses.rec[Ses.i] = { quiz: q, correct, picked: btn.dataset.opt };
+  const sk = $('#study-wrap [data-act="skip"]');
+  if (sk) sk.remove();                       // 答完了就没有「跳过」可点
   if (correct) Ses.stats.right++; else Ses.stats.wrong++;
   if (Ses.kind !== 'test') {
     const before = progOf(Ses.cur.id);
@@ -924,8 +1031,9 @@ function pickOption(btn) {
     slot.querySelector('[data-next]').onclick = () => { Ses.i++; nextCard(); };
   }
   if (correct) {
+    const stamp = Ses.stamp;                 // 用户中途滑走就作废这次自动跳转
     setTimeout(() => {
-      if (Ses.on && Ses.quiz === q) { Ses.i++; nextCard(); }
+      if (Ses.on && Ses.stamp === stamp && Ses.quiz === q) { Ses.i++; nextCard(); }
     }, 1100);
   }
 }
@@ -955,6 +1063,8 @@ function tapMatch(btn) {
 
   if (a.id === oid) {
     a.el.classList.add('done'); btn.classList.add('done');
+    // 记在数据上，滑走再滑回来才能把已配对的状态重新画出来
+    q.left.concat(q.right).forEach(t => { if (t.id === oid) t.done = true; });
     q.done++;
     const el = $('#mk-left'); if (el) el.textContent = 4 - q.done;
     if (q.done >= 4) {
@@ -972,6 +1082,9 @@ function tapMatch(btn) {
 function finishMatch() {
   const q = Ses.quiz, w = Ses.cur;
   const ok = !q.miss;
+  Ses.rec[Ses.i] = { quiz: q, correct: ok, picked: null };
+  const sk = $('#study-wrap [data-act="skip"]');
+  if (sk) sk.remove();
   if (ok) Ses.stats.right++; else Ses.stats.wrong++;
   if (Ses.kind !== 'test') {
     const before = progOf(w.id);
@@ -987,7 +1100,10 @@ function finishMatch() {
     (ok ? '　·　下次复习：' + esc(intervalText(w.id)) : '') + '</div></div>' +
     '<button class="btn btn-primary btn-block" style="margin-top:12px" data-next="1">继续</button>';
   slot.querySelector('[data-next]').onclick = () => { Ses.i++; nextCard(); };
-  if (ok) setTimeout(() => { if (Ses.on && Ses.quiz === q) { Ses.i++; nextCard(); } }, 1500);
+  if (ok) {
+    const stamp = Ses.stamp;
+    setTimeout(() => { if (Ses.on && Ses.stamp === stamp && Ses.quiz === q) { Ses.i++; nextCard(); } }, 1500);
+  }
 }
 
 function markPure() {
@@ -1975,6 +2091,10 @@ function studySwipeActs() {
   const box = $('#study-wrap');
   const un = box.querySelector('[data-act="unknown"]');
   const L = un ? () => un.click() : null;
+  if (Ses.phase === 'quiz' || Ses.phase === 'quiz-review') {
+    // 左滑下一题 / 右滑上一题。这里不调 .click()，避免和「吞掉尾随点击」的判定纠缠
+    return { l: () => quizSlide(1), r: () => quizSlide(-1) };
+  }
   if (Ses.phase === 'front') {
     const fl = box.querySelector('[data-act="flip"]');
     return fl ? { l: L, r: () => fl.click() } : null;
@@ -2014,7 +2134,7 @@ document.addEventListener('touchstart', e => {
   G = {
     x: p.clientX, y: p.clientY, t0: Date.now(), dx: 0, dy: 0, axis: '',
     study, acts, target: null, moved: false,
-    card: study ? t.closest('.flashcard') : null,
+    card: study ? (t.closest('.flashcard') || t.closest('.q-stem')) : null,
     view: study ? null : $('#view')
   };
 }, { passive: true });
@@ -2041,8 +2161,11 @@ document.addEventListener('touchmove', e => {
       // 长按复制是 560ms 计时器，手指一横移就得取消，否则复制提示会盖住卡片
       G.card.dispatchEvent(new Event('pointerleave'));
       const damp = Math.max(-1, Math.min(1, dx / 200));
+      const fl = G.card.classList.contains('flashcard');
       G.card.style.transition = 'none';
-      G.card.style.transform = 'translateX(' + (dx * 0.24) + 'px) rotate(' + (damp * 1.8) + 'deg)';
+      // 卡片带一点旋转更像实体牌；答题页只平移，转起来会晃眼
+      G.card.style.transform = 'translateX(' + (dx * (fl ? 0.24 : 0.16)) + 'px)' +
+        (fl ? ' rotate(' + (damp * 1.8) + 'deg)' : '');
     }
     return;
   }

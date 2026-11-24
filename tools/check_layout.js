@@ -255,12 +255,65 @@ async function shot(cdp, name) {
           }
         } else if (v.mobile) {
           const locked = await ev(cdp, `document.querySelectorAll('#study-wrap .opt.locked').length`);
-          ok(locked === 0, '答题阶段不接手势，没有误选', locked + ' 个被选中');
+          ok(locked === 0, '进答题页时没有误选', locked + ' 个被选中');
         }
         await ev(cdp, `(() => { const b = document.querySelector('#study-wrap [data-ses="close"]'); if (b) b.click(); })()`);
         await sleep(240);
       } else {
         ok(false, '学习页能打开', '纯背模式没启动（词本可能为空）');
+      }
+
+      /* 4b. 答题页左右滑动换题：左滑跳过 / 右滑回看已答的题 */
+      if (v.mobile) {
+        await nav(cdp, '#home');
+        await ev(cdp, `(() => { const b = document.querySelector('[data-act="test"]'); if (b) b.click(); })()`);
+        await sleep(320);
+        const q1 = await ev(cdp, `(() => {
+          const w = document.getElementById('study-wrap');
+          if (getComputedStyle(w).display === 'none') return null;
+          const c = w.querySelector('.study-top > div:last-child');
+          return {
+            idx: c ? c.textContent.trim() : '',
+            opts: w.querySelectorAll('.opt').length,
+            skip: !!w.querySelector('.quiz-skip')
+          };
+        })()`);
+        if (q1 && q1.opts > 0) {
+          const Y = Math.round(v.h * 0.4);
+          ok(q1.skip, '答题页有「跳过」入口（桌面上也能用）', q1.skip ? '' : '没找到 .quiz-skip');
+          await shot(cdp, 'resp-' + v.name + '-quiz');
+
+          await swipe(cdp, v.w * 0.78, v.w * 0.22, Y);          // 左滑（从右往左）→ 下一题
+          const q2 = await ev(cdp, `(() => {
+            const w = document.getElementById('study-wrap');
+            const c = w.querySelector('.study-top > div:last-child');
+            return { idx: c ? c.textContent.trim() : '', locked: w.querySelectorAll('.opt.locked').length };
+          })()`);
+          ok(q2.idx !== q1.idx && q2.locked === 0, '答题页左滑 → 换下一题，且没有误选',
+            q1.idx + ' → ' + q2.idx);
+
+          await swipe(cdp, v.w * 0.24, v.w * 0.78, Y);          // 右滑（从左往右）→ 回上一题
+          const q3 = await ev(cdp, `(document.querySelector('#study-wrap .study-top > div:last-child') || {}).textContent.trim()`);
+          ok(q3 === q1.idx, '答题页右滑 → 回上一题', q3);
+
+          // 答掉当前题，再滑走、滑回：应该看到只读回顾，选项不能再点
+          await ev(cdp, `(() => { const o = document.querySelector('#study-wrap .opt'); if (o) o.click(); })()`);
+          await sleep(220);
+          await swipe(cdp, v.w * 0.78, v.w * 0.22, Y);
+          await swipe(cdp, v.w * 0.24, v.w * 0.78, Y);
+          const rv = await ev(cdp, `(() => {
+            const w = document.getElementById('study-wrap');
+            return { review: !!w.querySelector('.feedback .fb-line'), opts: w.querySelectorAll('.opt').length,
+                     tag: (w.querySelector('.q-tag') || {}).textContent || '' };
+          })()`);
+          await shot(cdp, 'resp-' + v.name + '-quiz-review');
+          ok(rv.review && rv.opts === 0, '回看已答的题是只读回顾（不能重复作答）',
+            rv.review ? rv.tag.trim() : '没出现回顾卡');
+        } else {
+          console.log('  · 这轮抽到连连看或没有进答题页，跳过答题页滑动断言');
+        }
+        await ev(cdp, `(() => { const b = document.querySelector('#study-wrap [data-ses="close"]'); if (b) b.click(); })()`);
+        await sleep(240);
       }
 
       /* 5. 左右滑动 */
