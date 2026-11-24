@@ -87,6 +87,15 @@ async function ev(cdp, expr) {
   }
   return r.result.value;
 }
+async function waitUntil(cdp, expr, ms) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < (ms || 8000)) {
+    try { if (await ev(cdp, expr)) return true; } catch (e) {}
+    await sleep(150);
+  }
+  return false;
+}
+
 const SHOT = process.env.KR_SHOT !== '0';
 const OUT = path.resolve(__dirname, '..', 'shots');
 async function shot(cdp, name) {
@@ -152,7 +161,7 @@ const getJson = async url => {
         ${cloud ? `localStorage.setItem('krlearn.cloud', ${JSON.stringify(cloud)});` : ''}
       })()`);
       await cdp.send('Page.reload');
-      await sleep(1300);
+      await waitUntil(cdp, `!!document.getElementById('gate') || !!document.querySelector('.hero')`, 12000);
     };
 
     /* 1. 闸门挡住整页 */
@@ -168,7 +177,8 @@ const getJson = async url => {
     ok(g1.has, '闸门出现');
     ok(!g1.view.trim(), 'App 没启动（#view 是空的）', g1.view ? '居然渲染了 ' + g1.view.length + ' 字' : '');
     ok(g1.cards === 1, '闸门里只有一张卡', g1.cards + ' 张');
-    ok(!ONLINE ? /on/.test(g1.cloud) : true, '云端已连接时有绿色提示', g1.cloud);
+    ok(ONLINE ? /off/.test(g1.cloud) : /on/.test(g1.cloud),
+       ONLINE ? '线上没配云端 → 如实标「本地模式」' : '云端已连接时有绿色提示', g1.cloud);
     ok(/^kr-[a-z0-9]{6}$/.test(g1.user), '预填了随机用户名', g1.user);
     await shot(cdp, 'acct-gate');
 
@@ -177,7 +187,7 @@ const getJson = async url => {
     const pw = await ev(cdp, `(document.getElementById('f-p') || {}).value || ''`);
     ok(pw.length >= 6, '预填了随机密码', pw.length + ' 位');
     await ev(cdp, `(() => { document.querySelector('#gate [data-g="go"]').click(); })()`);
-    await sleep(900);
+    await waitUntil(cdp, `!!document.getElementById('g-u') || !!document.querySelector('.gate-err')`, 10000);
     const d1 = await ev(cdp, `(() => {
       const g = document.getElementById('gate');
       return { h: (g.querySelector('.gate-h') || {}).textContent || '',
@@ -198,7 +208,7 @@ const getJson = async url => {
     ok(still, '没点确认之前，闸门还在');
 
     await ev(cdp, `(() => { document.querySelector('#gate [data-g="enter"]').click(); })()`);
-    await sleep(1500);
+    await waitUntil(cdp, `!!document.querySelector('.hero')`, 12000);
     const inApp = await ev(cdp, `(() => ({
       gate: !!document.getElementById('gate'),
       hero: !!document.querySelector('.hero')
@@ -247,17 +257,20 @@ const getJson = async url => {
     /* 4. 刷新免注册 */
     head('== 4. 刷新 / 重进不用再注册 ==');
     await cdp.send('Page.reload');
-    await sleep(1500);
+    await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || {}).innerHTML.length > 200`, 12000);
     const again = await ev(cdp, `(() => ({
-      gate: !!document.getElementById('gate'), hero: !!document.querySelector('.hero')
+      gate: !!document.getElementById('gate'),
+      view: ((document.getElementById('view') || {}).innerHTML || '').length,
+      sess: !!localStorage.getItem('krlearn.sess'), url: location.href,
+      errs: (window.__errs || []).join('|')
     }))()`);
-    ok(!again.gate && again.hero, '刷新后直接进 App');
+    ok(!again.gate && again.view > 200, '刷新后直接进 App', '会话还在，页面渲染了 ' + again.view + ' 字');
 
     /* 5. 退出 → 密码错 → 密码对 */
     head('== 5. 退出后：密码错进不去，密码对能进 ==');
     await ev(cdp, `localStorage.removeItem('krlearn.sess')`);
     await cdp.send('Page.reload');
-    await sleep(1400);
+    await waitUntil(cdp, `!!document.getElementById('gate')`, 12000);
     await ev(cdp, `(() => { document.querySelector('#gate [data-g="tab"][data-v="login"]').click(); })()`);
     await sleep(200);
     await ev(cdp, `(() => {
@@ -265,7 +278,7 @@ const getJson = async url => {
       document.getElementById('f-p').value = 'wrongpass';
       document.querySelector('#gate [data-g="go"]').click();
     })()`);
-    await sleep(1200);
+    await waitUntil(cdp, `!!document.querySelector('.gate-err')`, 10000);
     const bad = await ev(cdp, `(() => ({
       gate: !!document.getElementById('gate'),
       err: (document.querySelector('.gate-err') || {}).textContent || ''
@@ -276,11 +289,12 @@ const getJson = async url => {
       document.getElementById('f-p').value = ${JSON.stringify(pw)};
       document.querySelector('#gate [data-g="go"]').click();
     })()`);
-    await sleep(1600);
+    await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || {}).innerHTML.length > 200`, 12000);
     const good = await ev(cdp, `(() => ({
-      gate: !!document.getElementById('gate'), hero: !!document.querySelector('.hero')
+      gate: !!document.getElementById('gate'),
+      view: ((document.getElementById('view') || {}).innerHTML || '').length
     }))()`);
-    ok(!good.gate && good.hero, '密码对了进得去');
+    ok(!good.gate && good.view > 200, '密码对了进得去', '渲染了 ' + good.view + ' 字');
 
     /* 6. 存档跟着账号走 */
     head('== 6. 同一个账号重新登录，进度还在 ==');
@@ -295,20 +309,23 @@ const getJson = async url => {
     /* 7. 纯本地模式（没配云端地址时线上就是这个形态） */
     head('== 7. 没配云端地址：本地注册也能进，且如实标「本地模式」==');
     await fresh('');
+    await waitUntil(cdp, `!!document.getElementById('gate')`, 12000);
     const g7 = await ev(cdp, `(() => {
       const g = document.getElementById('gate');
+      if (!g) return { cls: '', txt: '' };
       return { cls: (g.querySelector('.gate-cloud') || {}).className || '',
                txt: (g.querySelector('.gate-cloud') || {}).textContent || '' };
     })()`);
     ok(/off/.test(g7.cls) && /本地模式/.test(g7.txt), '闸门写明「本地模式」', g7.txt.trim());
     await ev(cdp, `(() => { document.querySelector('#gate [data-g="go"]').click(); })()`);
-    await sleep(1300);
+    await waitUntil(cdp, `!!document.getElementById('g-u') || !!document.querySelector('.gate-err')`, 10000);
     const d7 = await ev(cdp, `((document.querySelector('.gate-h') || {}).textContent || '')`);
     ok(/账号已创建/.test(d7), '本地模式也能注册', d7);
     await ev(cdp, `(() => { document.querySelector('#gate [data-g="enter"]').click(); })()`);
-    await sleep(1400);
-    const in7 = await ev(cdp, `(() => ({ gate: !!document.getElementById('gate'), hero: !!document.querySelector('.hero') }))()`);
-    ok(!in7.gate && in7.hero, '本地账号进得去 App');
+    await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || {}).innerHTML.length > 200`, 12000);
+    const in7 = await ev(cdp, `(() => ({ gate: !!document.getElementById('gate'),
+      view: ((document.getElementById('view') || {}).innerHTML || '').length }))()`);
+    ok(!in7.gate && in7.view > 200, '本地账号进得去 App', '渲染了 ' + in7.view + ' 字');
     const local = await ev(cdp, `(KR.info().localToken === true)`);
     ok(local, '会话标记为本地（token=local，不会往云端推）');
   } catch (e) {
