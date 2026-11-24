@@ -328,6 +328,82 @@ const getJson = async url => {
     ok(!in7.gate && in7.view > 200, '本地账号进得去 App', '渲染了 ' + in7.view + ' 字');
     const local = await ev(cdp, `(KR.info().localToken === true)`);
     ok(local, '会话标记为本地（token=local，不会往云端推）');
+
+    /* 8. 老存档迁移：无账号时代的进度，注册后要原样搬进新账号 */
+    head('== 8. 老的无账号存档，注册后自动搬进新账号 ==');
+    await fresh('');
+    await waitUntil(cdp, `!!document.getElementById('gate')`, 12000);
+    // 造一份「没用过账号系统」的存档
+    await ev(cdp, `localStorage.setItem('krlearn.v1', JSON.stringify({
+      progress: { '__probe': { state: 2, reps: 3, wrong: 1 } },
+      settings: { autoWord: true },
+      meta: { updatedAt: 111 }
+    }))`);
+    await cdp.send('Page.reload');
+    await waitUntil(cdp, `!!document.getElementById('gate')`, 12000);
+    await ev(cdp, `(() => { document.querySelector('#gate [data-g="go"]').click(); })()`);
+    await waitUntil(cdp, `!!document.getElementById('g-u')`, 12000);
+    const legacyUser = await ev(cdp, `((document.querySelector('#g-u') || {}).textContent || '')`);
+    await ev(cdp, `(() => { document.querySelector('#gate [data-g="enter"]').click(); })()`);
+    await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || {}).innerHTML.length > 200`, 12000);
+    const mig = await ev(cdp, `(() => {
+      const u = ${JSON.stringify(legacyUser)};
+      const cur = localStorage.getItem('krlearn.v1.' + u);
+      if (!cur) return { ok: false };
+      const o = JSON.parse(cur);
+      return {
+        ok: true,
+        probe: o.progress && o.progress.__probe ? o.progress.__probe.reps : 0,
+        keep: !!localStorage.getItem('krlearn.v1.migrated'),
+        gone: !localStorage.getItem('krlearn.v1')
+      };
+    })()`);
+    ok(mig.ok && mig.probe === 3, '进度搬到了新账号底下', mig.ok ? 'reps=' + mig.probe : '新账号没有存档');
+    ok(mig.keep, '原件留了一份 .migrated 备份');
+    ok(mig.gone, '老键已清掉，避免两个账号抢同一份数据');
+
+    /* 9. 本地账号 → 云端（先上线、后部署 Worker 的那条路） */
+    if (!ONLINE) {
+      head('== 9. 本地账号可以连接到云端，进度一起带上去 ==');
+      await fresh('');
+      await waitUntil(cdp, `!!document.getElementById('gate')`, 12000);
+      await ev(cdp, `(() => { document.querySelector('#gate [data-g="go"]').click(); })()`);
+      await waitUntil(cdp, `!!document.getElementById('g-u')`, 12000);
+      const upUser = await ev(cdp, `((document.querySelector('#g-u') || {}).textContent || '')`);
+      await ev(cdp, `(() => { document.querySelector('#gate [data-g="enter"]').click(); })()`);
+      await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || {}).innerHTML.length > 200`, 12000);
+
+      // 造点进度，再「上线云端」
+      await ev(cdp, `location.hash = '#settings'`);
+      await sleep(500);
+      await ev(cdp, `(() => { const b = document.querySelector('[data-tg="autoWord"]'); if (b) b.click(); })()`);
+      await sleep(400);
+      await ev(cdp, `localStorage.setItem('krlearn.cloud', ${JSON.stringify(MOCK)})`);
+      await cdp.send('Page.reload');
+      await waitUntil(cdp, `!document.getElementById('gate') && (document.getElementById('view') || []).length !== 0`, 12000);
+      await sleep(600);
+      const beforeUp = await ev(cdp, `(() => ({
+        gate: !!document.getElementById('gate'),
+        row: !!document.querySelector('[data-act="upgrade"]'),
+        local: KR.info().localToken
+      }))()`);
+      ok(!beforeUp.gate && beforeUp.local, '配好云端后，本地会话不会被踢出去重注册');
+      ok(beforeUp.row, '设置页出现「连接到云端」');
+
+      // prompt 会被弹出来，先把它顶掉
+      await ev(cdp, `window.prompt = () => 'pa55word'`);
+      await ev(cdp, `(() => { document.querySelector('[data-act="upgrade"]').click(); })()`);
+      await waitUntil(cdp, `(() => { try { return KR.info().synced === true; } catch (e) { return false; } })()`, 15000);
+      await sleep(800);
+      const afterUp = await ev(cdp, `(KR.info().synced === true)`);
+      ok(afterUp, '本机身份换成了云端 token');
+      const upUsers = await getJson(MOCK + '/api/users');
+      const ur = upUsers && upUsers.users && upUsers.users[upUser];
+      ok(!!ur, '云端建了同名账号', upUser);
+      ok(!!(ur && ur.hasDb), '进度一起传上去了');
+      const st9 = await ev(cdp, `(async () => { const j = await KR.stats(); return j ? j.users : -1; })()`);
+      ok(st9 >= 1, '换成云端后统计读得到', String(st9));
+    }
   } catch (e) {
     console.log('  ✗ 脚本异常：' + (e && e.message || e));
     FAIL = 1;
